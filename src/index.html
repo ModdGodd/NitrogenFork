@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/monokai.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.css">
+    <style>
+        :root {
+            --bg-color: #1a1b24;
+            --text-color: #f8f8f2;
+            --border-color: #2c2e3b;
+            --editor-bg: #141419;
+            --editor-content-bg: #1a1b24;
+            --gutter-bg: #141419;
+            --tab-inactive: #1f2029;
+            --accent-color: #8a67c8;
+            --button-hover: #3d4566;
+            --button-active: #2dbb4e;
+        }
+        * {margin: 0; padding: 0; box-sizing: border-box;}
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background-color: var(--bg-color); color: var(--text-color);
+            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+        }
+        .header, .sidebar-header {
+            display: flex; justify-content: space-between; align-items: center;
+            background-color: var(--bg-color); border-bottom: 1px solid var(--border-color);
+        }
+        .header {padding: 10px 15px;}
+        .sidebar-header {padding: 15px; background-color: var(--editor-bg);}
+        .title {font-size: 1.2rem; font-weight: normal;}
+        .sidebar-title {font-size: 1.1rem; font-weight: normal;}
+        .main {
+            display: flex; flex-direction: column; flex: 1;
+            overflow: hidden; height: calc(100vh - 45px);
+        }
+        .tab-container {
+            display: flex; background-color: var(--bg-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tab {
+            padding: 8px 15px; background-color: var(--tab-inactive);
+            border-right: 1px solid var(--border-color); cursor: pointer;
+            user-select: none; font-size: 0.9rem; display: flex; align-items: center;
+        }
+        .tab.active {
+            background-color: var(--editor-bg);
+            border-bottom: 2px solid var(--accent-color);
+        }
+        .tab-close {
+            margin-left: 8px; opacity: 0.6; font-size: 0.9em; width: 16px; height: 16px; 
+            display: flex; align-items: center; justify-content: center; border-radius: 50%;
+        }
+        .tab-close:hover {background-color: rgba(255, 255, 255, 0.1); opacity: 1;}
+        .new-tab-btn {
+            padding: 8px 12px; background-color: transparent; border: none;
+            color: var(--text-color); cursor: pointer; font-size: 1.2rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .new-tab-btn:hover {background-color: rgba(255, 255, 255, 0.1);}
+        .editor-container {
+            flex: 3; position: relative; display: flex;
+            flex-direction: column; min-height: 0;
+        }
+        .editor-wrapper {position: relative; flex: 1; overflow: hidden; min-height: 0;}
+        .CodeMirror {
+            height: 100%; font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px; line-height: 1.5; 
+            background-color: var(--editor-content-bg) !important;
+            overflow: hidden !important;
+        }
+        .CodeMirror-gutters {
+            background-color: var(--gutter-bg) !important;
+            border-right: 1px solid var(--border-color);
+        }
+        .CodeMirror-linenumber {
+            color: var(--line-number-color);
+            text-align: center;
+            padding-left: 5px;
+            padding-right: 5px;
+
+        }
+        .CodeMirror-scroll {
+            overflow: auto !important; margin: 0 !important; padding: 0 !important;
+            height: 100%; outline: none; position: relative;
+        }
+        .execute-btn, .scripthub-btn, .save-btn, .roblox-btn {
+            position: absolute; width: 50px; height: 50px; right: 20px;
+            background-color: var(--accent-color); border: none; border-radius: 50%;
+            color: white; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease; z-index: 10;
+        }
+        .execute-btn {bottom: 20px;}
+        .scripthub-btn {bottom: 80px;}
+        .save-btn {bottom: 140px;}
+        .roblox-btn {bottom: 200px;}
+        .execute-btn:hover, .scripthub-btn:hover, .save-btn:hover, .roblox-btn:hover {
+            background-color: var(--button-hover); transform: scale(1.05);
+        }
+        .execute-btn:active, .scripthub-btn:active, .save-btn:active, .roblox-btn:active {
+            background-color: var(--button-active); transform: scale(0.95);
+        }
+        .output-container {
+            flex: 0 0 auto; display: flex; flex-direction: column; overflow: hidden;
+            border-top: 1px solid var(--border-color);
+            height: 200px; min-height: 100px; max-height: 50vh; resize: vertical;
+        }
+        .output-header {
+            padding: 5px 15px; background-color: var(--bg-color);
+            border-bottom: 1px solid var(--border-color); font-size: 0.9rem;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .clear-console {
+            cursor: pointer; opacity: 0.7; font-size: 0.8rem; 
+            padding: 2px 6px; border-radius: 3px;
+        }
+        .clear-console:hover {opacity: 1; background-color: rgba(255, 255, 255, 0.1);}
+        #output {
+            flex: 1; background-color: var(--editor-bg); color: var(--text-color);
+            padding: 10px 15px; font-family: inherit; font-size: 14px; line-height: 1.5;
+            overflow-y: auto; white-space: pre-wrap; user-select: text;
+        }
+        .log-output {color: #58ACFA;}
+        .log-warning {color: #FFA500;}
+        .log-error {color: #FF4500;}
+        .CodeMirror-hints {
+            background-color: var(--editor-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-color) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+        }
+        .CodeMirror-hint {
+            color: var(--text-color) !important;
+            background-color: var(--editor-bg) !important;
+            border-radius: 0 !important;
+        }
+        .CodeMirror-hint-active {
+            background-color: var(--accent-color) !important;
+            color: white !important;
+        }
+        .scripthub-sidebar {
+            position: fixed; top: 0; right: -350px; width: 350px; height: 100vh;
+            background-color: var(--bg-color); border-left: 1px solid var(--border-color);
+            z-index: 100; transition: right 0.3s ease;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .scripthub-sidebar.active {right: 0;}
+        .sidebar-close {
+            cursor: pointer; opacity: 0.7; font-size: 1.5rem; transition: opacity 0.2s;
+        }
+        .sidebar-close:hover {opacity: 1;}
+        .scripts-tabs {
+            display: flex; border-bottom: 1px solid var(--border-color);
+            background-color: var(--editor-bg);
+        }
+        .scripts-tab {
+            padding: 10px 15px; cursor: pointer; font-size: 0.9rem;
+            border-bottom: 2px solid transparent;
+        }
+        .scripts-tab.active {
+            border-bottom: 2px solid var(--accent-color);
+            color: var(--accent-color);
+        }
+        .search-container {
+            padding: 10px; background-color: var(--editor-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+        #scripthub-search {
+            width: 100%; padding: 8px 10px; background-color: var(--editor-content-bg);
+            border: 1px solid var(--border-color); color: var(--text-color);
+            border-radius: 4px; font-family: inherit; font-size: 0.9rem;
+        }
+        #scripthub-search:focus {outline: none; border-color: var(--accent-color);}
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .script-item {
+            background-color: var(--editor-bg); border: 1px solid var(--border-color);
+            border-radius: 4px; margin-bottom: 10px; padding: 12px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .script-item:hover {border-color: var(--accent-color); transform: translateY(-2px);}
+        .script-title {font-size: 1rem; margin-bottom: 6px; color: var(--text-color);}
+        .script-game {font-size: 0.8rem; color: #aaa; margin-bottom: 8px;}
+        .script-meta {display: flex; font-size: 0.75rem; color: #888;}
+        .script-source {
+            font-size: 0.8rem; color: #888; margin-bottom: 5px; font-style: italic;
+        }
+        .script-load-btn {
+            background-color: var(--accent-color); color: white; border: none;
+            padding: 5px 10px; border-radius: 3px; font-size: 0.8rem;
+            cursor: pointer; margin-top: 8px; transition: background-color 0.2s;
+        }
+        .script-load-btn:hover {background-color: var(--button-hover);}
+        .requires-key {
+            color: orange; font-size: 0.75rem; margin-left: 8px;
+            display: inline-flex; align-items: center; font-weight: bold;
+        }
+        .loading-spinner {
+            display: flex; justify-content: center; align-items: center; height: 100px;
+        }
+        .loading-spinner::after {
+            content: ""; width: 30px; height: 30px;
+            border: 4px solid #aaa; border-top: 4px solid var(--accent-color);
+            border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% {transform: rotate(0deg);}
+            100% {transform: rotate(360deg);}
+        }
+        .sidebar-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); z-index: 99;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s;
+        }
+        .sidebar-overlay.active {opacity: 1; visibility: visible;}
+        .context-menu {
+            position: absolute; background-color: var(--editor-bg);
+            border: 1px solid var(--border-color); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            border-radius: 4px; padding: 5px 0; z-index: 1000; display: none;
+        }
+        .context-menu-item {
+            padding: 8px 15px; cursor: pointer; font-size: 0.9rem;
+            color: var(--text-color); white-space: nowrap;
+        }
+        .context-menu-item:hover {background-color: var(--accent-color); color: white;}
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); z-index: 200;
+            display: flex; justify-content: center; align-items: center;
+            visibility: hidden; opacity: 0; transition: opacity 0.2s ease;
+        }
+        .modal-overlay.active {visibility: visible; opacity: 1;}
+        .modal-dialog {
+            background-color: var(--editor-bg); border: 1px solid var(--border-color);
+            border-radius: 4px; width: 350px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        .modal-header {
+            padding: 15px; border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-title {font-size: 1.1rem; font-weight: normal; margin: 0;}
+        .modal-content {padding: 15px;}
+        .modal-input {
+            width: 100%; padding: 8px 10px; background-color: var(--editor-content-bg);
+            border: 1px solid var(--border-color); color: var(--text-color);
+            border-radius: 4px; font-family: inherit; font-size: 0.9rem; margin-bottom: 15px;
+        }
+        .modal-input:focus {outline: none; border-color: var(--accent-color);}
+        .modal-buttons {display: flex; justify-content: flex-end; gap: 10px;}
+        .modal-btn {
+            padding: 6px 15px; border-radius: 4px; font-size: 0.9rem;
+            cursor: pointer; border: none;
+        }
+        .modal-btn-cancel {background-color: var(--tab-inactive); color: var(--text-color);}
+        .modal-btn-submit {background-color: var(--accent-color); color: white;}
+        .modal-btn:hover {opacity: 0.9;}
+        
+        .autoexec-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .autoexec-label {
+            margin-right: 8px;
+            font-size: 0.9rem;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--tab-inactive);
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider {
+            background-color: var(--accent-color);
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .script-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            padding: 5px;
+            opacity: 0.7;
+            transition: opacity 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .script-action-btn:hover {
+            opacity: 1;
+        }
+        .script-delete-btn:hover {
+            color: #ff5555; 
+        }
+        .script-rename-btn:hover {
+            color: var(--accent-color);
+        }
+        .script-actions {
+            display: flex;
+            align-items: center;
+            margin-left: 8px;
+        }
+        .script-item .autoexec-container {
+            margin-bottom: 0;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">Nitrogen</h1>
+    </div>
+    <div class="main">
+        <div class="tab-container">
+            <div class="tab active" data-tab-id="script1">script.lua<span class="tab-close">×</span></div>
+            <button class="new-tab-btn">+</button>
+        </div>
+        
+        <div class="editor-container">
+            <div class="editor-wrapper">
+                <textarea id="code-editor" spellcheck="false">print("Nitrogen!")</textarea>
+                <button class="roblox-btn" id="roblox-btn">
+                    <span style="font-size: 24px; font-weight: bold;">R</span>
+                </button>
+                <button class="save-btn" id="save-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                </button>
+                <button class="scripthub-btn" id="scripthub-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="4 17 10 11 4 5"></polyline>
+                        <line x1="12" y1="19" x2="20" y2="19"></line>
+                    </svg>
+                </button>
+                <button class="execute-btn" id="run-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <div class="output-container">
+            <div class="output-header">
+                Roblox Console
+                <span class="clear-console" id="clear-console">Clear</span>
+            </div>
+            <div id="output"></div>
+        </div>
+    </div>
+    
+    <div class="sidebar-overlay"></div>
+    <div class="scripthub-sidebar">
+        <div class="sidebar-header">
+            <h2 class="sidebar-title">Scripts</h2>
+            <span class="sidebar-close">&times;</span>
+        </div>
+        <div class="scripts-tabs">
+            <div class="scripts-tab active" data-tab="local">Local Scripts</div>
+            <div class="scripts-tab" data-tab="online">ScriptBlox</div>
+        </div>
+        <div class="search-container" id="search-container" style="display: none;">
+            <input type="text" id="scripthub-search" placeholder="Search ScriptBlox..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div class="sidebar-content" id="scripthub-content">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+    
+    <div class="context-menu" id="tab-context-menu">
+        <div class="context-menu-item" id="context-rename">Rename</div>
+        <div class="context-menu-item" id="context-save">Save</div>
+    </div>
+    
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Rename Script</h3>
+            </div>
+            <div class="modal-content">
+                <input type="text" class="modal-input" id="modal-input" placeholder="Enter script name..." spellcheck="false">
+                <div class="autoexec-container" id="autoexec-container" style="display: none;">
+                    <span class="autoexec-label">Auto-execute when joining games</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoexec-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="modal-buttons">
+                    <button class="modal-btn modal-btn-cancel" id="modal-cancel">Cancel</button>
+                    <button class="modal-btn modal-btn-submit" id="modal-submit">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/lua/lua.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/anyword-hint.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const luaKeywords = ["and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while"];
+            const luaFunctions = ["assert", "collectgarbage", "dofile", "error", "getmetatable", "ipairs", "load", "loadfile", "next", "pairs", "pcall", "print", "rawequal", "rawget", "rawset", "require", "select", "setmetatable", "tonumber", "tostring", "type", "xpcall", "string.byte", "string.char", "string.dump", "string.find", "string.format", "string.gmatch", "string.gsub", "string.len", "string.lower", "string.match", "string.rep", "string.reverse", "string.sub", "string.upper", "table.concat", "table.insert", "table.pack", "table.remove", "table.sort", "table.unpack", "math.abs", "math.acos", "math.asin", "math.atan", "math.ceil", "math.cos", "math.deg", "math.exp", "math.floor", "math.log", "math.max", "math.min", "math.pi", "math.rad", "math.random", "math.randomseed", "math.sin", "math.sqrt", "math.tan"];
+            
+            CodeMirror.registerHelper("hint", "lua", (editor) => {
+                const cur = editor.getCursor(), token = editor.getTokenAt(cur);
+                const start = token.string.trim() !== "" ? token.start : cur.ch;
+                const currentWord = token.string.trim() !== "" ? token.string : "";
+                const list = [...luaKeywords, ...luaFunctions].filter(item => item.indexOf(currentWord) === 0);
+                
+                return {
+                    list: list.length ? list : [],
+                    from: CodeMirror.Pos(cur.line, start),
+                    to: CodeMirror.Pos(cur.line, cur.ch)
+                };
+            });
+            
+            const cm = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+                mode: "text/x-lua", theme: "monokai", lineNumbers: true,
+                matchBrackets: true, indentUnit: 4, tabSize: 4,
+                indentWithTabs: false, smartIndent: true,
+                extraKeys: {
+                    "Tab": cm => cm.somethingSelected() ? cm.indentSelection("add") : cm.replaceSelection("    "),
+                    "Ctrl-Space": "autocomplete"
+                }
+            });
+            
+            const MAX_TABS = 8;
+            const output = document.getElementById('output');
+            const tabContainer = document.querySelector('.tab-container');
+            const newTabBtn = document.querySelector('.new-tab-btn');
+            
+            let scripts = {'script1': {name: 'script.lua'}};
+            let activeId = 'script1', nextId = 2;
+            
+            function createTab(id, name, active = false) {
+                const tab = document.createElement('div');
+                tab.className = `tab ${active ? 'active' : ''}`;
+                tab.dataset.tabId = id;
+                tab.innerHTML = `${name}<span class="tab-close">×</span>`;
+                return tab;
+            }
+            
+            function switchTab(id) {
+                scripts[activeId].content = cm.getValue();
+                document.querySelectorAll('.tab').forEach(tab => 
+                    tab.classList.toggle('active', tab.dataset.tabId === id));
+                activeId = id;
+                cm.setValue(scripts[id].content);
+                
+                if (!scripts[id].content) {
+                    cm.setCursor(0, 0);
+                }
+                
+                cm.focus();
+            }
+            
+            function closeTab(id) {
+                if (Object.keys(scripts).length <= 1) return;
+                
+                if (activeId === id) {
+                    const remaining = Object.keys(scripts).filter(i => i !== id);
+                    if (remaining.length) switchTab(remaining[0]);
+                }
+                
+                document.querySelector(`.tab[data-tab-id="${id}"]`).remove();
+                delete scripts[id];
+                updateTabBtn();
+            }
+            
+            function updateTabBtn() {
+                const count = Object.keys(scripts).length;
+                newTabBtn.disabled = count >= MAX_TABS;
+                newTabBtn.style.opacity = count >= MAX_TABS ? '0.5' : '1';
+                newTabBtn.style.cursor = count >= MAX_TABS ? 'not-allowed' : 'pointer';
+            }
+            
+            window.updateConsoleOutput = function(message) {
+                if (typeof message === 'string') {
+                    const lowerMsg = message.toLowerCase();
+
+                    if (lowerMsg.includes('[flog::output] connection accepted')) {
+                        window.pywebview.api.runAutoExecScripts()
+                            .then(result => {
+                                if (result.status === 'success') {
+                                    updateConsoleOutput(`Auto-executed ${result.executedCount} script(s)`);
+                                    if (result.details && Array.isArray(result.details)) {
+                                        result.details.forEach(detail => updateConsoleOutput(detail));
+                                    }
+                                } else {
+                                    updateConsoleOutput(`Auto-execute error: ${result.message}`);
+                                }
+                            })
+                            .catch(error => {
+                                updateConsoleOutput(`Auto-execute error: ${error.message}`);
+                            });
+                        return;
+                    }
+
+                    if (lowerMsg.includes('[dflog::') || lowerMsg.includes('dflog::') || 
+                        message.includes('[DFlog::') || message.includes('DFlog::')) {
+                        return; 
+                    }
+
+                    if (lowerMsg.includes('[channel]') || lowerMsg.includes('channel]')) {
+                        return; 
+                    }
+                    
+                    const messageElement = document.createElement('div');
+                    let logType = null, prefix = '', msgContent = message.trim();
+
+                    if (message.includes('[FLog::')) {
+                        if (message.includes('[FLog::Output]')) {
+                            logType = 'log-output';
+                            prefix = '[Output]: ';
+                            message = message.replace('[FLog::Output]', '').trim();
+                        } else if (message.includes('[FLog::Warning]')) {
+                            logType = 'log-warning';
+                            prefix = '[Warning]: ';
+                            message = message.replace('[FLog::Warning]', '').trim();
+                        } else if (message.includes('[FLog::Error]')) {
+                            logType = 'log-error';
+                            prefix = '[Error]: ';
+                            message = message.replace('[FLog::Error]', '').trim();
+                        } else {
+                            return; 
+                        }
+                        
+                        msgContent = message.replace(/\[FLog::[^]]+\]/, '').trim();
+                        const matches = msgContent.match(/(?:[0-9a-fA-F,.:\-TZ]+\s+)+(.+)$/);
+                        if (matches && matches[1]) {
+                            msgContent = matches[1];
+                        } else {
+                            const wordStart = msgContent.search(/[a-zA-Z_](?![^a-zA-Z_]*[0-9a-fA-F,.:\-])/);
+                            if (wordStart >= 0) msgContent = msgContent.substring(wordStart);
+                        }
+                    }
+                    
+                    if (logType) {
+                        const logPrefix = document.createElement('span');
+                        logPrefix.className = logType;
+                        logPrefix.textContent = prefix;
+                        messageElement.appendChild(logPrefix);
+                        messageElement.appendChild(document.createTextNode(msgContent));
+                    } else {
+                        messageElement.textContent = msgContent;
+                    }
+                    
+                    output.appendChild(messageElement);
+                    requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+                } else if (message !== undefined && message !== null) {
+                    const messageElement = document.createElement('div');
+                    messageElement.textContent = String(message);
+                    output.appendChild(messageElement);
+                    requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+                }
+            };
+            
+            window.addEventListener('load', () => {
+                setTimeout(() => {
+                    window.pywebview.api.start_log_monitoring()
+                }, 1000);
+            });
+            
+            document.getElementById('clear-console').addEventListener('click', () => {
+                const logMessages = Array.from(output.childNodes).filter(node => 
+                    node.textContent && node.textContent.includes('Monitoring log file'));
+                output.innerHTML = '';
+                logMessages.forEach(node => output.appendChild(node));
+            });
+            
+            function executeScript() {
+                const logMessages = Array.from(output.childNodes).filter(node => 
+                    node.textContent && node.textContent.includes('Monitoring log file'));
+                
+                const code = cm.getValue();
+                scripts[activeId].content = code;
+                
+                window.pywebview.api.execute_script(code)
+                    .then(data => {
+                        updateConsoleOutput(data.message);
+                        if (data.details && Array.isArray(data.details)) {
+                            data.details.forEach(detail => updateConsoleOutput(detail));
+                        }
+                    })
+                    .catch(error => updateConsoleOutput(`Error: ${error.message}`));
+            }
+            
+            document.getElementById('run-btn').addEventListener('click', executeScript);
+            
+            tabContainer.addEventListener('click', e => {
+                const tab = e.target.closest('.tab');
+                if (!tab) return;
+                
+                if (e.target.classList.contains('tab-close')) closeTab(tab.dataset.tabId);
+                else switchTab(tab.dataset.tabId);
+            });
+            
+            updateTabBtn();
+            
+            cm.on("keyup", (cm, e) => {
+                if (!cm.state.completionActive && e.keyCode >= 65 && e.keyCode <= 90) {
+                    cm.showHint({completeSingle: false});
+                }
+            });
+
+            const scripthubBtn = document.getElementById('scripthub-btn');
+            const scripthubSidebar = document.querySelector('.scripthub-sidebar');
+            const sidebarOverlay = document.querySelector('.sidebar-overlay');
+            const sidebarClose = document.querySelector('.sidebar-close');
+            const scripthubContent = document.getElementById('scripthub-content');
+            const searchContainer = document.getElementById('search-container');
+            const scriptsTabs = document.querySelectorAll('.scripts-tab');
+            let currentScriptsTab = 'local';
+            
+            function toggleSidebar() {
+                scripthubSidebar.classList.toggle('active');
+                sidebarOverlay.classList.toggle('active');
+                
+                if (scripthubSidebar.classList.contains('active')) {
+                    if (currentScriptsTab === 'local') {
+                        fetchLocalScripts();
+                        searchContainer.style.display = 'none';
+                    } else {
+                        fetchScripts();
+                        searchContainer.style.display = 'block';
+                        document.getElementById('scripthub-search').value = '';
+                    }
+                }
+            }
+            
+            scriptsTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabType = tab.dataset.tab;
+                    scriptsTabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentScriptsTab = tabType;
+                    
+                    searchContainer.style.display = tabType === 'local' ? 'none' : 'block';
+                    if (tabType === 'local') fetchLocalScripts();
+                    else fetchScripts();
+                });
+            });
+            
+            const saveBtn = document.getElementById('save-btn');
+            saveBtn.addEventListener('click', () => saveScript(activeId));
+            
+            function debounce(func, wait) {
+                let timeout;
+                return function(...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), wait);
+                };
+            }
+            
+            function fetchLocalScripts() {
+                scripthubContent.innerHTML = '<div class="loading-spinner"></div>';
+                window.pywebview.api.getLocalScripts()
+                    .then(data => {
+                        if (data.status === 'success' && data.scripts.length > 0) {
+                            displayLocalScripts(data.scripts);
+                        } else {
+                            scripthubContent.innerHTML = '<p style="padding: 20px;">No local scripts found</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching local scripts:', error);
+                        scripthubContent.innerHTML = '<p style="padding: 20px;">Error fetching local scripts</p>';
+                    });
+            }
+            
+            function displayLocalScripts(localScripts) {
+                scripthubContent.innerHTML = '';
+                
+                localScripts.forEach(script => {
+                    const scriptItem = document.createElement('div');
+                    scriptItem.className = 'script-item';
+                    
+                    const isAutoExec = script.autoExec || false;
+                    
+                    scriptItem.innerHTML = `
+                        <div class="script-title">${script.name}</div>
+                        <div class="script-source">Locally saved script</div>
+                        <div style="display: flex; align-items: center; margin-top: 8px;">
+                            <button class="script-load-btn" data-script-local="true" data-script-name="${script.name}">Load Script</button>
+                            <div class="script-actions">
+                                <button class="script-action-btn script-rename-btn" data-script-name="${script.name}" title="Rename script">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                    </svg>
+                                </button>
+                                <button class="script-action-btn script-delete-btn" data-script-name="${script.name}" title="Delete script">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="autoexec-container">
+                                <span class="autoexec-label">Auto Exec</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" class="script-autoexec-toggle" data-script-name="${script.name}" ${isAutoExec ? 'checked' : ''}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                    
+                    scripthubContent.appendChild(scriptItem);
+                });
+                
+                document.querySelectorAll('.script-load-btn[data-script-local="true"]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        loadLocalScript(button.dataset.scriptName);
+                    });
+                });
+                
+                document.querySelectorAll('.script-autoexec-toggle').forEach(toggle => {
+                    toggle.addEventListener('change', (e) => {
+                        e.stopPropagation();
+                        window.pywebview.api.toggleAutoExec(toggle.dataset.scriptName, toggle.checked)
+                            .then(result => {
+                                if (result.status === 'success') {
+                                    updateConsoleOutput(`Auto-execute ${toggle.checked ? 'enabled' : 'disabled'} for "${toggle.dataset.scriptName}"`);
+                                } else {
+                                    toggle.checked = !toggle.checked; 
+                                    updateConsoleOutput(`Error: ${result.message}`);
+                                }
+                            })
+                            .catch(error => {
+                                toggle.checked = !toggle.checked;
+                                updateConsoleOutput(`Error toggling auto-execute: ${error.message}`);
+                            });
+                    });
+                });
+
+                document.querySelectorAll('.script-rename-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        renameLocalScript(button.dataset.scriptName);
+                    });
+                });
+
+                document.querySelectorAll('.script-delete-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteLocalScript(button.dataset.scriptName);
+                    });
+                });
+            }
+            
+            function loadLocalScript(scriptName) {
+                window.pywebview.api.getLocalScripts()
+                    .then(data => {
+                        if (data.status === 'success') {
+                            const script = data.scripts.find(s => s.name === scriptName);
+                            
+                            if (script) {
+                                if (Object.keys(scripts).length >= MAX_TABS) {
+                                    output.innerHTML = `Maximum tabs reached (${MAX_TABS}). Close a tab first.`;
+                                    return;
+                                }
+                                
+                                const id = `script${nextId++}`;
+                                scripts[id] = {name: script.name, content: script.content};
+                                tabContainer.insertBefore(createTab(id, script.name), newTabBtn);
+                                switchTab(id);
+                                updateTabBtn();
+                                toggleSidebar();
+                                
+                                output.innerHTML = `Local script "${script.name}" loaded successfully.`;
+                            } else {
+                                output.innerHTML = `Error: Script "${scriptName}" not found.`;
+                            }
+                        } else {
+                            output.innerHTML = `Error loading local scripts: ${data.message}`;
+                        }
+                    })
+                    .catch(error => {
+                        output.innerHTML = `Error loading script: ${error.message}`;
+                    });
+            }
+            
+            function fetchScripts(searchTerm = '') {
+                scripthubContent.innerHTML = '<div class="loading-spinner"></div>';
+                window.pywebview.api.getScripts(searchTerm)
+                    .then(data => {
+                        if (data.result.scripts.length > 0) {
+                            window.scriptHubScripts = data.result.scripts;
+                            displayScripts(data.result.scripts);
+                        } else {
+                            scripthubContent.innerHTML = searchTerm ? 
+                                '<p style="padding: 20px;">No results found</p>' : 
+                                '<p style="padding: 20px;">Search for scripts</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching scripts:', error);
+                        scripthubContent.innerHTML = '<p style="padding: 20px;">Error fetching scripts</p>';
+                    });
+            }
+            
+            function displayScripts(scripts) {
+                scripthubContent.innerHTML = '';
+                
+                scripts.forEach(script => {
+                    const scriptItem = document.createElement('div');
+                    scriptItem.className = 'script-item';
+                    
+                    scriptItem.innerHTML = `
+                        <div class="script-title">${script.title}</div>
+                        <div class="script-game">${script.game.name || 'Unknown Game'}</div>
+                        <div class="script-meta">
+                            <span>Added: ${new Date(script.createdAt).toLocaleDateString()}</span>
+                            ${script.key ? '<span class="requires-key">- Likely requires key</span>' : ''}
+                        </div>
+                        <div style="display: flex; align-items: center;">
+                            <button class="script-load-btn" data-script-id="${script._id}">Load Script</button>
+                        </div>
+                    `;
+                    
+                    scripthubContent.appendChild(scriptItem);
+                });
+                
+                document.querySelectorAll('.script-load-btn[data-script-id]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        loadScript(button.dataset.scriptId);
+                    });
+                });
+            }
+            
+            function loadScript(scriptId) {
+                const script = window.scriptHubScripts.find(s => s._id === scriptId);
+                
+                if (script && script.script) {
+                    scripts[activeId].content = script.script;
+                    cm.setValue(script.script);
+                    
+                    if (/^script\d*\.lua$/.test(scripts[activeId].name)) {
+                        const newName = script.title.endsWith('.lua') ? script.title : `${script.title}.lua`;
+                        scripts[activeId].name = newName;
+                        document.querySelector(`.tab[data-tab-id="${activeId}"]`).innerHTML = 
+                            `${newName}<span class="tab-close">×</span>`;
+                    }
+                    
+                    toggleSidebar();
+                    
+                    updateConsoleOutput(`Script "${script.title}" loaded successfully.`);
+                } else {
+                    updateConsoleOutput(`Error: Could not load script. Script content not available.`);
+                }
+            }
+            
+            scripthubBtn.addEventListener('click', toggleSidebar);
+            sidebarClose.addEventListener('click', toggleSidebar);
+            sidebarOverlay.addEventListener('click', toggleSidebar);
+            
+            document.getElementById('scripthub-search').addEventListener('input', debounce(function() {
+                fetchScripts(this.value);
+            }, 500)); 
+            
+            const contextMenu = document.getElementById('tab-context-menu');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalTitle = document.getElementById('modal-title');
+            const modalInput = document.getElementById('modal-input');
+            const modalCancel = document.getElementById('modal-cancel');
+            const modalSubmit = document.getElementById('modal-submit');
+            let contextTabId = null;
+            let modalCallback = null;
+            let modalType = '';
+            
+            function saveScript(id) {
+                scripts[id].content = cm.getValue();
+                const scriptName = scripts[id].name;
+                
+                if (/^script\d*\.lua$/.test(scriptName)) {
+                    showModal('Save as', scriptName, (newName, autoExec) => {
+                        if (newName && newName.trim() !== '') {
+                            const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                            scripts[id].name = updatedName;
+                            scripts[id].autoExec = autoExec;
+                            document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                                `${updatedName}<span class="tab-close">×</span>`;
+                            
+                            saveScriptToFile(id);
+                        }
+                    }, 'rename', true);
+                } else {
+                    showModal('Save Script', scriptName, (newName, autoExec) => {
+                        if (newName && newName.trim() !== '' && newName !== scriptName) {
+                            const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                            scripts[id].name = updatedName;
+                            document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                                `${updatedName}<span class="tab-close">×</span>`;
+                        }
+                        scripts[id].autoExec = autoExec;
+                        saveScriptToFile(id);
+                    }, 'save', true);
+                }
+            }
+            
+            function saveScriptToFile(id) {
+                const scriptName = scripts[id].name;
+                const autoExec = scripts[id].autoExec || false;
+                
+                window.pywebview.api.saveScript(scriptName, scripts[id].content, autoExec)
+                    .then(result => {
+                        updateConsoleOutput(result.status === 'success' ? 
+                            `Script saved successfully as: ${scriptName}${autoExec ? ' (Auto-Execute enabled)' : ''}` : 
+                            `Error saving script: ${result.message}`);
+                    })
+                    .catch(error => {
+                        updateConsoleOutput(`Error saving script: ${error.message}`);
+                    });
+            }
+            
+            function showModal(title, defaultValue, callback, type = 'rename', showAutoExec = false) {
+                modalTitle.textContent = title;
+                modalInput.value = defaultValue || '';
+                modalCallback = callback;
+                modalType = type;
+                
+                const autoExecContainer = document.getElementById('autoexec-container');
+                const autoExecToggle = document.getElementById('autoexec-toggle');
+                
+                if (showAutoExec) {
+                    autoExecContainer.style.display = 'flex';
+                    if (type === 'save' && activeId && scripts[activeId].hasOwnProperty('autoExec')) {
+                        autoExecToggle.checked = scripts[activeId].autoExec;
+                    } else {
+                        autoExecToggle.checked = false;
+                    }
+                } else {
+                    autoExecContainer.style.display = 'none';
+                }
+                
+                if (defaultValue && defaultValue.includes('.')) {
+                    const dotIndex = defaultValue.lastIndexOf('.');
+                    modalInput.setSelectionRange(0, dotIndex);
+                }
+                
+                modalOverlay.classList.add('active');
+                modalInput.focus();
+            }
+            
+            function hideModal() {
+                modalOverlay.classList.remove('active');
+                modalInput.value = '';
+                modalCallback = null;
+            }
+            
+            function showContextMenu(e, tabId) {
+                e.preventDefault();
+                contextTabId = tabId;
+                
+                contextMenu.style.left = `${e.pageX}px`;
+                contextMenu.style.top = `${e.pageY}px`;
+                contextMenu.style.display = 'block';
+                
+                setTimeout(() => {
+                    document.addEventListener('click', hideContextMenu);
+                }, 0);
+            }
+            
+            function hideContextMenu() {
+                contextMenu.style.display = 'none';
+                document.removeEventListener('click', hideContextMenu);
+            }
+            
+            function renameScript(id) {
+                const currentName = scripts[id].name;
+                showModal('Rename Script', currentName, (newName) => {
+                    if (newName && newName.trim() !== '') {
+                        const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                        scripts[id].name = updatedName;
+                        document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                            `${updatedName}<span class="tab-close">×</span>`;
+                    }
+                }, 'rename');
+            }
+            
+            function createNewScript() {
+                if (Object.keys(scripts).length >= MAX_TABS) {
+                    output.innerHTML = `Maximum tabs reached (${MAX_TABS}). Close a tab first.`;
+                    return;
+                }
+                
+                showModal('New Script', 'script.lua', (scriptName) => {
+                    if (scriptName && scriptName.trim() !== '') {
+                        const id = `script${nextId++}`;
+                        const name = scriptName.endsWith('.lua') ? scriptName : `${scriptName}.lua`;
+                        scripts[id] = {name, content: ''};
+                        tabContainer.insertBefore(createTab(id, name), newTabBtn);
+                        switchTab(id);
+                        updateTabBtn();
+                    }
+                }, 'new');
+            }
+            
+            tabContainer.addEventListener('contextmenu', e => {
+                const tab = e.target.closest('.tab');
+                if (!tab) return;
+                showContextMenu(e, tab.dataset.tabId);
+            });
+            
+            document.getElementById('context-rename').addEventListener('click', () => {
+                if (contextTabId) renameScript(contextTabId);
+            });
+            
+            document.getElementById('context-save').addEventListener('click', () => {
+                if (contextTabId) saveScript(contextTabId);
+            });
+            
+            modalCancel.addEventListener('click', hideModal);
+            
+            modalSubmit.addEventListener('click', () => {
+                if (modalCallback) {
+                    const autoExecToggle = document.getElementById('autoexec-toggle');
+                    modalCallback(modalInput.value, autoExecToggle.checked);
+                }
+                hideModal();
+            });
+            
+            modalInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && modalCallback) {
+                    const autoExecToggle = document.getElementById('autoexec-toggle');
+                    modalCallback(modalInput.value, autoExecToggle.checked);
+                    hideModal();
+                }
+            });
+            
+            newTabBtn.addEventListener('click', createNewScript);
+            
+            document.addEventListener('click', (e) => {
+                if (!contextMenu.contains(e.target)) {
+                    contextMenu.style.display = 'none';
+                }
+            });
+            
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) hideModal();
+            });
+
+            document.getElementById('roblox-btn').addEventListener('click', () => {
+                window.pywebview.api.openRoblox()
+            });
+
+            function renameLocalScript(scriptName) {
+                showModal('Rename Script', scriptName, (newName) => {
+                    if (newName && newName.trim() !== '' && newName !== scriptName) {
+                        const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                        
+                        window.pywebview.api.renameScript(scriptName, updatedName)
+                            .then(result => {
+                                if (result.status === 'success') {
+                                    updateConsoleOutput(`Script "${scriptName}" renamed to "${updatedName}"`);
+                                    fetchLocalScripts(); 
+                                    
+                                    Object.keys(scripts).forEach(id => {
+                                        if (scripts[id].name === scriptName) {
+                                            scripts[id].name = updatedName;
+                                            document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                                                `${updatedName}<span class="tab-close">×</span>`;
+                                        }
+                                    });
+                                } else {
+                                    updateConsoleOutput(`Error renaming script: ${result.message}`);
+                                }
+                            })
+                            .catch(error => {
+                                updateConsoleOutput(`Error renaming script: ${error.message}`);
+                            });
+                    }
+                }, 'rename');
+            }
+
+            function deleteLocalScript(scriptName) {
+                if (confirm(`Are you sure you want to delete "${scriptName}"?`)) {
+                    window.pywebview.api.deleteScript(scriptName)
+                        .then(result => {
+                            if (result.status === 'success') {
+                                updateConsoleOutput(`Script "${scriptName}" deleted successfully`);
+                                fetchLocalScripts(); 
+                                
+                                Object.keys(scripts).forEach(id => {
+                                    if (scripts[id].name === scriptName) {
+                                        closeTab(id);
+                                    }
+                                });
+                            } else {
+                                updateConsoleOutput(`Error deleting script: ${result.message}`);
+                            }
+                        })
+                        .catch(error => {
+                            updateConsoleOutput(`Error deleting script: ${error.message}`);
+                        });
+                }
+            }
+            
+            document.addEventListener('keydown', (e) => {       
+                const isCmdKey = e.metaKey 
+                
+                if (isCmdKey) {
+                    if (e.key === 'w') {
+                        e.preventDefault();
+                        closeTab(activeId);
+                    }
+
+                    else if (e.key === 't') {
+                        e.preventDefault(); 
+                        createNewScript();
+                    }
+
+                    else if (e.key === 's') {
+                        e.preventDefault(); 
+                        saveScript(activeId);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
