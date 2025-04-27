@@ -5,7 +5,8 @@
 clear
 
 LATEST_VER=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/JadXV/Nitrogen/releases/latest | sed 's|.*/tag/||')
-echo "Latest version determined to be: $LATEST_VER\n"
+echo "Latest version determined to be: $LATEST_VER"
+echo ""
 
 Nitrogen_URL="https://github.com/JadXV/Nitrogen/releases/download/$LATEST_VER/NitrogenCompressed.zip"
 TMP_ZIP="/tmp/NitrogenCompressed.zip"
@@ -14,7 +15,7 @@ if [ -d "/Applications/Nitrogen.app" ]; then
   echo "Nitrogen is already installed."
   
   if [ "$INTERACTIVE" = true ]; then
-    read "choice?Would you like to Update/Reinstall Nitrogen? (y/n): "
+    read "choice?Would you like to Update / Reinstall Nitrogen? (y/n): "
     case "$choice" in
       y|Y|yes|Yes ) 
         echo "Removing existing installation..."
@@ -26,7 +27,7 @@ if [ -d "/Applications/Nitrogen.app" ]; then
         ;;
     esac
   else
-    echo "Reinstalling Nitrogen automatically"
+    echo "Updating / Reinstalling Nitrogen..."
     rm -rf /Applications/Nitrogen.app
   fi
 fi
