@@ -4,11 +4,13 @@ import os
 import time
 import threading
 import json
+from datetime import datetime
 
 class API:
     def __init__(self):
         self.log_thread = None
         self.stop_log_monitoring = False
+        self.log_refresh_rate = 0.5 
         self.window = None
         self.directory = os.path.join(os.path.expanduser('~'), 'Documents', 'Nitrogen')
         self.scripts_directory = os.path.join(self.directory, 'scripts')
@@ -48,13 +50,11 @@ class API:
         START_PORT = 6969
         END_PORT = 7069
         server_port = None
-        last_error = ''
         messages = []
 
         try:
             for port in range(START_PORT, END_PORT + 1):
                 url = f"http://127.0.0.1:{port}/secret"
-                
                 try:
                     res = requests.get(url)
                     if res.status_code == 200:
@@ -62,11 +62,15 @@ class API:
                         if text == '0xdeadbeef':
                             server_port = port
                             break
-                except Exception as e:
-                    last_error = str(e)
+                except:
+                    continue
             
             if not server_port:
-                raise Exception(f"Could not locate HTTP server on ports {START_PORT}-{END_PORT}. Last error: {last_error}")
+                return {
+                    'status': 'error',
+                    'message': 'Error: Ports not detected, Make Roblox is running and Hydrogen is installed',
+                    'details': messages
+                }
             
             post_url = f"http://127.0.0.1:{server_port}/execute"
             
@@ -324,6 +328,19 @@ class API:
             return {"status": "success", "message": "Stopped log monitoring"}
         return {"status": "not_running", "message": "Log monitoring is not running"}
     
+    def set_log_refresh_rate(self, rate):
+        try:
+            rate = float(rate)
+            if rate < 0.1:
+                rate = 0.1  
+            elif rate > 5.0:
+                rate = 5.0 
+                
+            self.log_refresh_rate = rate
+            return {"status": "success", "message": f"Log refresh rate set to {rate} seconds"}
+        except Exception as e:
+            return {"status": "error", "message": f"Invalid refresh rate: {str(e)}"}
+    
     def _monitor_log_file(self):
         try:
             log_dir = os.path.expanduser('~/Library/Logs/Roblox')
@@ -336,48 +353,86 @@ class API:
             
             current_log_file = None
             file_size = 0
+            last_file_check = 0
+            file_check_interval = 5 
+            log_buffer = []
+            last_update_time = time.time()
+            update_interval = 0.3  
             
             while not self.stop_log_monitoring:
-                try:
-                    files = [f for f in os.listdir(log_dir) if os.path.isfile(os.path.join(log_dir, f))]
-                    if not files:
-                        self.window.evaluate_js("updateConsoleOutput('No log files found in Roblox logs directory');")
-                        time.sleep(2)
-                        continue
-                    
-                    files.sort(key=lambda x: os.path.getmtime(os.path.join(log_dir, x)), reverse=True)
-                    latest_log_file = os.path.join(log_dir, files[0])
-                    
-                    if latest_log_file != current_log_file:
-                        current_log_file = latest_log_file
-                        file_size = os.path.getsize(current_log_file)
-                        self.window.evaluate_js(f"updateConsoleOutput('Monitoring new logs from: {os.path.basename(current_log_file)}');")
-                    
-                    current_size = os.path.getsize(current_log_file)
-                    
-                    if current_size > file_size:
-                        with open(current_log_file, 'r') as f:
-                            f.seek(file_size)
-                            new_content = f.read(current_size - file_size)
-                        
-                        file_size = current_size
-                        
-                        for line in new_content.splitlines():
-                            if line.strip():
-                                escaped_line = line.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
-                                self.window.evaluate_js(f"updateConsoleOutput('{escaped_line}');")
-                    
-                    time.sleep(0.5)
+                current_time = time.time()
                 
-                except Exception as e:
-                    self.window.evaluate_js(f"updateConsoleOutput('Error monitoring log file: {str(e)}');")
-                    time.sleep(2)
-        
+                if current_time - last_file_check >= file_check_interval:
+                    try:
+                        files = [f for f in os.listdir(log_dir) if os.path.isfile(os.path.join(log_dir, f))]
+                        if files:
+                            files.sort(key=lambda x: os.path.getmtime(os.path.join(log_dir, x)), reverse=True)
+                            latest_log_file = os.path.join(log_dir, files[0])
+                            
+                            if latest_log_file != current_log_file:
+                                current_log_file = latest_log_file
+                                file_size = os.path.getsize(current_log_file)
+                                self.window.evaluate_js(f"updateConsoleOutput('Monitoring new logs from: {os.path.basename(current_log_file)}');")
+                        last_file_check = current_time
+                    except Exception as e:
+                        self.window.evaluate_js(f"updateConsoleOutput('Error checking log files: {str(e)}');")
+                        time.sleep(2)
+                        last_file_check = current_time
+                        continue
+                
+                if current_log_file and os.path.exists(current_log_file):
+                    try:
+                        current_size = os.path.getsize(current_log_file)
+                        
+                        if current_size > file_size:
+                            with open(current_log_file, 'r') as f:
+                                f.seek(file_size)
+                                chunk_size = 1024 * 1024  
+                                if current_size - file_size > chunk_size:
+                                    new_content = f.read(chunk_size)
+                                else:
+                                    new_content = f.read(current_size - file_size)
+                            
+                            file_size = os.path.getsize(current_log_file) 
+                            
+                            for line in new_content.splitlines():
+                                if line.strip():
+                                    timestamp = datetime.now().strftime('%H:%M:%S')
+                                    log_buffer.append(f"[{timestamp}] {line}")
+                    except Exception as e:
+                        log_buffer.append(f"Error reading log file: {str(e)}")
+                
+                if log_buffer and (current_time - last_update_time >= update_interval):
+                    try:
+                        if len(log_buffer) > 100: 
+                            to_send = log_buffer[-100:]
+                            log_buffer = []
+                        else:
+                            to_send = log_buffer
+                            log_buffer = []
+                        
+                        escaped_lines = []
+                        for line in to_send:
+                            escaped_line = line.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
+                            escaped_lines.append(escaped_line)
+                        
+                        if escaped_lines:
+                            self.window.evaluate_js(f"batchUpdateConsole({json.dumps(escaped_lines)});")
+                        
+                        last_update_time = current_time
+                    except Exception as e:
+                        print(f"Error updating console: {str(e)}")
+                
+                if not log_buffer:
+                    time.sleep(self.log_refresh_rate)
+                else:
+                    time.sleep(min(0.1, self.log_refresh_rate / 2))
+            
         except Exception as e:
             if self.window:
                 self.window.evaluate_js(f"updateConsoleOutput('Log monitoring error: {str(e)}');")
 
 api = API()
-window = webview.create_window('Nitrogen v1.0', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600))
+window = webview.create_window('Nitrogen v1.1', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600))
 api.window = window
 webview.start()

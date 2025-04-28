@@ -522,7 +522,7 @@
                 if (typeof message === 'string') {
                     const lowerMsg = message.toLowerCase();
 
-                    if (lowerMsg.includes('[flog::output] connection accepted')) {
+                    if (lowerMsg.includes('[flog::output] server prefix: ')) {
                         window.pywebview.api.runAutoExecScripts()
                             .then(result => {
                                 if (result.status === 'success') {
@@ -596,6 +596,13 @@
                     messageElement.textContent = String(message);
                     output.appendChild(messageElement);
                     requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+                }
+            };
+            window.batchUpdateConsole = function(lines) {
+                if (Array.isArray(lines)) {
+                    for (const line of lines) {
+                        updateConsoleOutput(line);
+                    }
                 }
             };
             
