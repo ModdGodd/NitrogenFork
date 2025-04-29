@@ -101,12 +101,19 @@ class API:
             }        
         
     def getScripts(self, script):
+        if script == "":
+            res = requests.get("https://scriptblox.com/api/script/fetch")
+            if res.status_code == 200:
+                return res.json()
+            else:
+                raise Exception(f"HTTP {res.status_code}: {res.text}")
+        else:
             res = requests.get(f"https://scriptblox.com/api/script/search?q={script}")
             if res.status_code == 200:
                 return res.json()
             else:
                 raise Exception(f"HTTP {res.status_code}: {res.text}")
-            
+                
     def openRoblox(self):
         try:
             os.system("open -a Roblox")
@@ -433,6 +440,6 @@ class API:
                 self.window.evaluate_js(f"updateConsoleOutput('Log monitoring error: {str(e)}');")
 
 api = API()
-window = webview.create_window('Nitrogen v1.1', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600))
+window = webview.create_window('Nitrogen v1.2', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600))
 api.window = window
 webview.start()

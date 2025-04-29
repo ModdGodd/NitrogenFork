@@ -183,9 +183,67 @@
         .script-item {
             background-color: var(--editor-bg); border: 1px solid var(--border-color);
             border-radius: 4px; margin-bottom: 10px; padding: 12px; cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s; position: relative; overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
         }
-        .script-item:hover {border-color: var(--accent-color); transform: translateY(-2px);}
+        .script-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            border-color: var(--accent-color);
+            background-color: rgba(138, 103, 200, 0.05);
+        }
+        .script-item:hover .script-title {
+            color: var(--accent-color);
+        }
+        .script-item:hover .script-load-btn {
+            transform: scale(1.05);
+        }
+        .script-item-with-bg {
+            position: relative;
+            color: white;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+            z-index: 1;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .script-item-with-bg:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        .script-item-with-bg:hover .script-bg-image {
+            transform: scale(1.05) translateY(-2px);
+            filter: blur(0px);
+        }
+        .script-item-with-bg:hover .script-bg-overlay {
+            background: rgba(15, 15, 20, 0.85);
+        }
+        .script-item-with-bg .script-title,
+        .script-item-with-bg .script-game,
+        .script-item-with-bg .script-meta,
+        .script-item-with-bg .script-source {
+            position: relative;
+            z-index: 2;
+        }
+        .script-bg-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            z-index: -2;
+            transition: transform 0.3s ease, filter 0.3s ease;
+        }
+        .script-bg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 15, 20, 0.92);
+            z-index: -1;
+            transition: background 0.3s ease;
+        }
         .script-title {font-size: 1rem; margin-bottom: 6px; color: var(--text-color);}
         .script-game {font-size: 0.8rem; color: #aaa; margin-bottom: 8px;}
         .script-meta {display: flex; font-size: 0.75rem; color: #888;}
@@ -195,9 +253,25 @@
         .script-load-btn {
             background-color: var(--accent-color); color: white; border: none;
             padding: 5px 10px; border-radius: 3px; font-size: 0.8rem;
-            cursor: pointer; margin-top: 8px; transition: background-color 0.2s;
+            cursor: pointer; margin-top: 8px; transition: background-color 0.2s, transform 0.2s;
         }
         .script-load-btn:hover {background-color: var(--button-hover);}
+        
+        .script-direct-btn {
+            background-color: #013a63; color: white; border: none;
+            padding: 5px 10px; border-radius: 3px; font-size: 0.8rem;
+            cursor: pointer; margin-top: 8px; margin-right: 8px; 
+            transition: all 0.2s ease;
+        }
+        .script-direct-btn:hover {
+            background-color: #333333; 
+            transform: scale(1.05);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .script-buttons {
+            display: flex;
+            align-items: center;
+        }
         .requires-key {
             color: orange; font-size: 0.75rem; margin-left: 8px;
             display: inline-flex; align-items: center; font-weight: bold;
@@ -399,8 +473,8 @@
             <div class="scripts-tab active" data-tab="local">Local Scripts</div>
             <div class="scripts-tab" data-tab="online">ScriptBlox</div>
         </div>
-        <div class="search-container" id="search-container" style="display: none;">
-            <input type="text" id="scripthub-search" placeholder="Search ScriptBlox..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <div class="search-container" id="search-container">
+            <input type="text" id="scripthub-search" placeholder="Search local scripts..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         </div>
         <div class="sidebar-content" id="scripthub-content">
             <div class="loading-spinner"></div>
@@ -662,19 +736,26 @@
             const searchContainer = document.getElementById('search-container');
             const scriptsTabs = document.querySelectorAll('.scripts-tab');
             let currentScriptsTab = 'local';
+            let localScriptsCache = [];
             
             function toggleSidebar() {
                 scripthubSidebar.classList.toggle('active');
                 sidebarOverlay.classList.toggle('active');
                 
                 if (scripthubSidebar.classList.contains('active')) {
+                    searchContainer.style.display = 'block';
+                    
+                    const searchInput = document.getElementById('scripthub-search');
+                    searchInput.placeholder = currentScriptsTab === 'local' ? 
+                        "Search local scripts..." : 
+                        "Search ScriptBlox...";
+                    
+                    searchInput.value = '';
+                    
                     if (currentScriptsTab === 'local') {
                         fetchLocalScripts();
-                        searchContainer.style.display = 'none';
                     } else {
                         fetchScripts();
-                        searchContainer.style.display = 'block';
-                        document.getElementById('scripthub-search').value = '';
                     }
                 }
             }
@@ -686,9 +767,21 @@
                     tab.classList.add('active');
                     currentScriptsTab = tabType;
                     
-                    searchContainer.style.display = tabType === 'local' ? 'none' : 'block';
-                    if (tabType === 'local') fetchLocalScripts();
-                    else fetchScripts();
+                    const searchInput = document.getElementById('scripthub-search');
+                    searchInput.placeholder = tabType === 'local' ? 
+                        "Search local scripts..." : 
+                        "Search ScriptBlox...";
+                    
+                    const currentSearchTerm = searchInput.value;
+                    
+                    if (tabType === 'local') {
+                        fetchLocalScripts();
+                        if (currentSearchTerm.trim() !== '') {
+                            filterLocalScripts(currentSearchTerm);
+                        }
+                    } else {
+                        fetchScripts(currentSearchTerm);
+                    }
                 });
             });
             
@@ -708,6 +801,7 @@
                 window.pywebview.api.getLocalScripts()
                     .then(data => {
                         if (data.status === 'success' && data.scripts.length > 0) {
+                            localScriptsCache = data.scripts;
                             displayLocalScripts(data.scripts);
                         } else {
                             scripthubContent.innerHTML = '<p style="padding: 20px;">No local scripts found</p>';
@@ -717,6 +811,24 @@
                         console.error('Error fetching local scripts:', error);
                         scripthubContent.innerHTML = '<p style="padding: 20px;">Error fetching local scripts</p>';
                     });
+            }
+            
+            function filterLocalScripts(searchTerm) {
+                if (!searchTerm || searchTerm.trim() === '') {
+                    displayLocalScripts(localScriptsCache);
+                    return;
+                }
+                
+                const filtered = localScriptsCache.filter(script => 
+                    script.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (script.content && script.content.toLowerCase().includes(searchTerm.toLowerCase()))
+                );
+                
+                if (filtered.length > 0) {
+                    displayLocalScripts(filtered);
+                } else {
+                    scripthubContent.innerHTML = '<p style="padding: 20px;">No matching scripts found</p>';
+                }
             }
             
             function displayLocalScripts(localScripts) {
@@ -840,9 +952,7 @@
                             window.scriptHubScripts = data.result.scripts;
                             displayScripts(data.result.scripts);
                         } else {
-                            scripthubContent.innerHTML = searchTerm ? 
-                                '<p style="padding: 20px;">No results found</p>' : 
-                                '<p style="padding: 20px;">Search for scripts</p>';
+                            scripthubContent.innerHTML = '<p style="padding: 20px;">No scripts found</p>';
                         }
                     })
                     .catch(error => {
@@ -856,16 +966,23 @@
                 
                 scripts.forEach(script => {
                     const scriptItem = document.createElement('div');
-                    scriptItem.className = 'script-item';
+                    scriptItem.className = 'script-item script-item-with-bg';
                     
+                    const gameImageUrl = script.game.imageUrl === "/images/no-script.webp" ? 
+                        "https://www.publicdomainpictures.net/pictures/220000/velka/planet-1494403454Zmz.jpg" : 
+                        script.game.imageUrl;
+
                     scriptItem.innerHTML = `
+                        ${gameImageUrl ? `<div class="script-bg-image" style="background-image: url('${gameImageUrl}')"></div>
+                        <div class="script-bg-overlay"></div>` : ''}
                         <div class="script-title">${script.title}</div>
                         <div class="script-game">${script.game.name || 'Unknown Game'}</div>
                         <div class="script-meta">
                             <span>Added: ${new Date(script.createdAt).toLocaleDateString()}</span>
                             ${script.key ? '<span class="requires-key">- Likely requires key</span>' : ''}
                         </div>
-                        <div style="display: flex; align-items: center;">
+                        <div class="script-buttons">
+                            <button class="script-direct-btn" data-script-id="${script._id}">Direct Execute</button>
                             <button class="script-load-btn" data-script-id="${script._id}">Load Script</button>
                         </div>
                     `;
@@ -877,6 +994,13 @@
                     button.addEventListener('click', (e) => {
                         e.stopPropagation();
                         loadScript(button.dataset.scriptId);
+                    });
+                });
+                
+                document.querySelectorAll('.script-direct-btn[data-script-id]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        directExecuteScript(button.dataset.scriptId);
                     });
                 });
             }
@@ -903,13 +1027,37 @@
                 }
             }
             
+            function directExecuteScript(scriptId) {
+                const script = window.scriptHubScripts.find(s => s._id === scriptId);
+                
+                if (script && script.script) {
+                    window.pywebview.api.execute_script(script.script)
+                        .then(data => {
+                            toggleSidebar();
+                            updateConsoleOutput(`Executing: "${script.title}"`);
+                            updateConsoleOutput(data.message);
+                            if (data.details && Array.isArray(data.details)) {
+                                data.details.forEach(detail => updateConsoleOutput(detail));
+                            }
+                        })
+                        .catch(error => updateConsoleOutput(`Error: ${error.message}`));
+                } else {
+                    updateConsoleOutput(`Error: Could not execute script. Script content not available.`);
+                }
+            }
+            
             scripthubBtn.addEventListener('click', toggleSidebar);
             sidebarClose.addEventListener('click', toggleSidebar);
             sidebarOverlay.addEventListener('click', toggleSidebar);
             
             document.getElementById('scripthub-search').addEventListener('input', debounce(function() {
-                fetchScripts(this.value);
-            }, 500)); 
+                const searchTerm = this.value;
+                if (currentScriptsTab === 'local') {
+                    filterLocalScripts(searchTerm);
+                } else {
+                    fetchScripts(searchTerm);
+                }
+            }, 250)); 
             
             const contextMenu = document.getElementById('tab-context-menu');
             const modalOverlay = document.getElementById('modal-overlay');
