@@ -18,7 +18,7 @@ Nitrogen is a modern, clean and feature-packed custom UI/wrapper for Hydrogen wi
 Run the following command in Terminal:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/JadXV/Nitrogen/main/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/JadXV/Nitrogen/refs/heads/main/install.sh | bash
 ```
 
 ### Manual Installation
