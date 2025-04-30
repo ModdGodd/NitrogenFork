@@ -185,6 +185,9 @@ class API:
         try:
             executed_count = 0
             details = []
+ 
+            self.execute_script("cleardrawcache()") # TRITIUM MAN I KNOW YOUR READING THIS DONT COPY ISTG
+            details.append("Cleared Hydrogen watermark")
             
             for script_name, metadata in self.script_metadata.items():
                 if metadata.get('autoExec', False):
@@ -440,6 +443,6 @@ class API:
                 self.window.evaluate_js(f"updateConsoleOutput('Log monitoring error: {str(e)}');")
 
 api = API()
-window = webview.create_window('Nitrogen v1.2', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600))
+window = webview.create_window('Nitrogen v1.3', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600))
 api.window = window
 webview.start()

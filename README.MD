@@ -43,6 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/JadXV/Nitrogen/refs/heads/main/inst
 | ⌘+S | Save current script |
 | ⌘+T | Create new tab |
 | ⌘+W | Close current tab |
+| ⌘+[1-9] | Switch to specified tab (e.g., ⌘+1 for first tab) |
 
 ## 📝 Script Management
 

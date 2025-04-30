@@ -565,11 +565,10 @@
                 activeId = id;
                 cm.setValue(scripts[id].content);
                 
-                if (!scripts[id].content) {
+                setTimeout(() => {
                     cm.setCursor(0, 0);
-                }
-                
-                cm.focus();
+                    cm.focus();
+                }, 0);
             }
             
             function closeTab(id) {
@@ -1314,6 +1313,17 @@
                     else if (e.key === 's') {
                         e.preventDefault(); 
                         saveScript(activeId);
+                    }
+                    
+                    else if (/^[1-8]$/.test(e.key)) {
+                        e.preventDefault();
+                        const tabIndex = parseInt(e.key) - 1; 
+                        const tabIds = Object.keys(scripts);
+                        
+                        if (tabIds.length > tabIndex) {
+                            const tabId = tabIds[tabIndex];
+                            switchTab(tabId);
+                        }
                     }
                 }
             });
