@@ -1,6 +1,5 @@
 #!/bin/zsh
 
-
 [[ -t 0 && -t 1 ]] && INTERACTIVE=true || INTERACTIVE=false
 clear
 
@@ -10,6 +9,16 @@ echo ""
 
 Nitrogen_URL="https://github.com/JadXV/Nitrogen/releases/download/$LATEST_VER/NitrogenCompressed.zip"
 TMP_ZIP="/tmp/NitrogenCompressed.zip"
+
+ARCH=$(uname -m)
+if [[ "$ARCH" == "arm64" ]]; then
+  ARCH_FOLDER="Nitrogen-ARM64"
+elif [[ "$ARCH" == "x86_64" ]]; then
+  ARCH_FOLDER="Nitrogen-x86_64"
+else
+  echo "Unsupported architecture: $ARCH"
+  exit 1
+fi
 
 if [ -d "/Applications/Nitrogen.app" ]; then
   echo "Nitrogen is already installed."
@@ -32,14 +41,25 @@ if [ -d "/Applications/Nitrogen.app" ]; then
   fi
 fi
 
+
+if [ -f "$HOME/Documents/Nitrogen/metadata.json" ]; then
+  echo "Deleting metadata.json file..."
+  rm "$HOME/Documents/Nitrogen/metadata.json"
+fi
+
 echo "Downloading Nitrogen"
 curl -fsSL "$Nitrogen_URL" -o "$TMP_ZIP" || echo "Failed to download Nitrogen"
 
 echo "Installing Nitrogen"
 unzip -q "$TMP_ZIP" -d /tmp || echo "Failed to unzip"
+
+echo "Installing $ARCH_FOLDER"
+
+mv /tmp/$ARCH_FOLDER.app /tmp/Nitrogen.app || echo "Failed to move the correct version"
 mv /tmp/Nitrogen.app /Applications || echo "Failed to install"
 xattr -rd com.apple.quarantine /Applications/Nitrogen.app
+
 rm "$TMP_ZIP"
 
 echo "Nitrogen installed successfully!"
-echo "You can now run Nitrogen from your Applications folder."
+echo "You can now open Nitrogen from your Applications folder."

@@ -5,7 +5,40 @@ import time
 import threading
 import json
 from datetime import datetime
+from AppKit import NSApp, NSAlert
 
+BACKEND_VERSION = "v2.0"
+
+def get_latest_version():
+    try:
+        response = requests.head('https://github.com/JadXV/Nitrogen/releases/latest', allow_redirects=True)
+        final_url = response.url
+        latest_version = final_url.split('/tag/')[1] if '/tag/' in final_url else None
+        return latest_version
+    except Exception as e:
+        print(f"Error getting latest version: {str(e)}")
+        return None
+    
+if get_latest_version() > BACKEND_VERSION:
+    latest_version = get_latest_version()
+    alert = NSAlert.alloc().init()
+    alert.setMessageText_("Nitrogen Update Available")
+    alert.setInformativeText_(f"A new version of Nitrogen is available!\n\nCurrent version: {BACKEND_VERSION}\nNew version: {latest_version}\n\nWould you like to update now?")
+    alert.addButtonWithTitle_("Install Update")
+    alert.addButtonWithTitle_("Not Now")
+    alert.setAlertStyle_(0)
+
+    result = alert.runModal()
+    if result == 1000:
+        os.system("curl -fsSL https://raw.githubusercontent.com/JadXV/Nitrogen/refs/heads/main/install.sh | bash")
+        success_alert = NSAlert.alloc().init()
+        success_alert.setMessageText_("Update Complete")
+        success_alert.setInformativeText_(f"Nitrogen has been updated to version {latest_version}.\n\nPlease restart the application to apply the changes.")
+        success_alert.addButtonWithTitle_("bet")
+        success_alert.setAlertStyle_(0)
+        success_alert.runModal()
+        exit(0)
+    
 class API:
     def __init__(self):
         self.log_thread = None
@@ -14,37 +47,16 @@ class API:
         self.window = None
         self.directory = os.path.join(os.path.expanduser('~'), 'Documents', 'Nitrogen')
         self.scripts_directory = os.path.join(self.directory, 'scripts')
-        self.metadata_file = os.path.join(self.directory, 'metadata.json')
+        self.hydrogen_autoexec_dir = os.path.join(os.path.expanduser('~'), 'Hydrogen', 'autoexecute')
 
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
             
         if not os.path.exists(self.scripts_directory):
             os.makedirs(self.scripts_directory)
-
-        self.script_metadata = self._load_metadata()
-
-    def _load_metadata(self):
-        if os.path.exists(self.metadata_file):
-            try:
-                with open(self.metadata_file, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error loading metadata file: {str(e)}")
-                return {}
-        return {}
-    
-    def _save_metadata(self):
-        try:
-            if not os.path.exists(os.path.dirname(self.metadata_file)):
-                os.makedirs(os.path.dirname(self.metadata_file))
-                
-            with open(self.metadata_file, 'w') as f:
-                json.dump(self.script_metadata, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"Error saving metadata file: {str(e)}")
-            return False
+            
+        if not os.path.exists(self.hydrogen_autoexec_dir):
+            os.makedirs(self.hydrogen_autoexec_dir)
 
     def execute_script(self, script_content):
         START_PORT = 6969
@@ -143,10 +155,16 @@ class API:
             with open(file_path, 'w') as f:
                 f.write(content)
             
-            self.script_metadata[name] = {
-                'autoExec': bool(auto_exec)
-            }
-            self._save_metadata()
+            if auto_exec:
+                if not os.path.exists(self.hydrogen_autoexec_dir):
+                    os.makedirs(self.hydrogen_autoexec_dir)
+                autoexec_path = os.path.join(self.hydrogen_autoexec_dir, name)
+                with open(autoexec_path, 'w') as f:
+                    f.write(content)
+            else:
+                autoexec_path = os.path.join(self.hydrogen_autoexec_dir, name)
+                if os.path.exists(autoexec_path):
+                    os.remove(autoexec_path)
                 
             return {
                 'status': 'success',
@@ -162,14 +180,25 @@ class API:
     
     def toggleAutoExec(self, script_name, enabled):
         try:
-            if script_name in self.script_metadata:
-                self.script_metadata[script_name]['autoExec'] = bool(enabled)
-            else:
-                self.script_metadata[script_name] = {
-                    'autoExec': bool(enabled)
+            script_path = os.path.join(self.scripts_directory, script_name)
+            autoexec_path = os.path.join(self.hydrogen_autoexec_dir, script_name)
+            
+            if not os.path.exists(script_path):
+                return {
+                    'status': 'error',
+                    'message': f'Script {script_name} not found'
                 }
             
-            self._save_metadata()
+            if enabled:
+                if not os.path.exists(self.hydrogen_autoexec_dir):
+                    os.makedirs(self.hydrogen_autoexec_dir)
+                with open(script_path, 'r') as f:
+                    content = f.read()
+                with open(autoexec_path, 'w') as f:
+                    f.write(content)
+            else:
+                if os.path.exists(autoexec_path):
+                    os.remove(autoexec_path)
             
             return {
                 'status': 'success',
@@ -179,43 +208,6 @@ class API:
             return {
                 'status': 'error',
                 'message': f'Failed to update auto-execute status: {str(e)}'
-            }
-    
-    def runAutoExecScripts(self):
-        try:
-            executed_count = 0
-            details = []
- 
-            self.execute_script("cleardrawcache()") # TRITIUM MAN I KNOW YOUR READING THIS DONT COPY ISTG
-            details.append("Cleared Hydrogen watermark")
-            
-            for script_name, metadata in self.script_metadata.items():
-                if metadata.get('autoExec', False):
-                    script_path = os.path.join(self.scripts_directory, script_name)
-                    if os.path.exists(script_path):
-                        try:
-                            with open(script_path, 'r') as f:
-                                script_content = f.read()
-                            
-                            result = self.execute_script(script_content)
-                            executed_count += 1
-                            details.append(f"Auto-executed: {script_name}")
-                            
-                            if result.get('status') == 'error':
-                                details.append(f"Error with {script_name}: {result.get('message')}")
-                        except Exception as e:
-                            details.append(f"Error reading/executing {script_name}: {str(e)}")
-            
-            return {
-                'status': 'success',
-                'message': f'Auto-executed {executed_count} script(s)',
-                'executedCount': executed_count,
-                'details': details
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Failed to run auto-execute scripts: {str(e)}'
             }
     
     def getLocalScripts(self):
@@ -231,9 +223,8 @@ class API:
                         with open(file_path, 'r') as f:
                             content = f.read()
                         
-                        auto_exec = False
-                        if filename in self.script_metadata:
-                            auto_exec = self.script_metadata[filename].get('autoExec', False)
+                        autoexec_path = os.path.join(self.hydrogen_autoexec_dir, filename)
+                        auto_exec = os.path.exists(autoexec_path)
                         
                         files.append({
                             'name': filename,
@@ -257,6 +248,7 @@ class API:
     def deleteScript(self, script_name):
         try:
             script_path = os.path.join(self.scripts_directory, script_name)
+            autoexec_path = os.path.join(self.hydrogen_autoexec_dir, script_name)
             
             if not os.path.exists(script_path):
                 return {
@@ -266,9 +258,8 @@ class API:
             
             os.remove(script_path)
             
-            if script_name in self.script_metadata:
-                del self.script_metadata[script_name]
-                self._save_metadata()
+            if os.path.exists(autoexec_path):
+                os.remove(autoexec_path)
             
             return {
                 'status': 'success',
@@ -291,6 +282,9 @@ class API:
             old_path = os.path.join(self.scripts_directory, old_name)
             new_path = os.path.join(self.scripts_directory, new_name)
             
+            old_autoexec_path = os.path.join(self.hydrogen_autoexec_dir, old_name)
+            new_autoexec_path = os.path.join(self.hydrogen_autoexec_dir, new_name)
+            
             if not os.path.exists(old_path):
                 return {
                     'status': 'error',
@@ -303,12 +297,15 @@ class API:
                     'message': f'Script "{new_name}" already exists'
                 }
             
+            with open(old_path, 'r') as f:
+                content = f.read()
+                
             os.rename(old_path, new_path)
             
-            if old_name in self.script_metadata:
-                self.script_metadata[new_name] = self.script_metadata[old_name]
-                del self.script_metadata[old_name]
-                self._save_metadata()
+            if os.path.exists(old_autoexec_path):
+                with open(new_autoexec_path, 'w') as f:
+                    f.write(content)
+                os.remove(old_autoexec_path)
             
             return {
                 'status': 'success',
@@ -442,7 +439,16 @@ class API:
             if self.window:
                 self.window.evaluate_js(f"updateConsoleOutput('Log monitoring error: {str(e)}');")
 
+    def quit_app(self):
+        NSApp.terminate_(None)
+
+    
+    def minimize_app(self):
+        NSApp.hide_(None)
+
+    
+
 api = API()
-window = webview.create_window('Nitrogen v1.3', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600))
+window = webview.create_window('Nitrogen', "./index.html", js_api=api, width=1280, height=720, min_size=(800,600), transparent=True, frameless=True)
 api.window = window
 webview.start()

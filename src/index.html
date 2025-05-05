@@ -108,17 +108,55 @@
             flex: 0 0 auto; display: flex; flex-direction: column; overflow: hidden;
             border-top: 1px solid var(--border-color);
             height: 200px; min-height: 100px; max-height: 50vh; resize: vertical;
+            transition: height 0.3s ease, min-height 0.3s ease;
+        }
+        .output-container.minimized {
+            height: 30px;
+            min-height: 30px;
+            resize: none;
+        }
+        .output-container #output {
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            transform-origin: top center;
+        }
+        .output-container.minimized #output {
+            display: block;
+            opacity: 0;
+            transform: translateY(-20px) scaleY(0);
         }
         .output-header {
             padding: 5px 15px; background-color: var(--bg-color);
             border-bottom: 1px solid var(--border-color); font-size: 0.9rem;
             display: flex; justify-content: space-between; align-items: center;
         }
-        .clear-console {
-            cursor: pointer; opacity: 0.7; font-size: 0.8rem; 
-            padding: 2px 6px; border-radius: 3px;
+        .output-header-buttons {
+            display: flex;
+            align-items: center;
         }
-        .clear-console:hover {opacity: 1; background-color: rgba(255, 255, 255, 0.1);}
+        .minimize-console, .clear-console {
+            cursor: pointer;
+            margin-left: 10px;
+            opacity: 0.7;
+            transition: opacity 0.2s, color 0.2s;
+            display: flex; align-items: center;
+            justify-content: center;
+        }
+        .minimize-console:hover, .clear-console:hover {
+            opacity: 1;
+            color: var(--accent-color);
+        }
+        .minimize-console svg {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.3s ease;
+        }
+        .minimize-console.minimized svg {
+            transform: rotate(180deg);
+        }
+        .clear-console svg {
+            width: 18px;
+            height: 18px;
+        }
         #output {
             flex: 1; background-color: var(--editor-bg); color: var(--text-color);
             padding: 10px 15px; font-family: inherit; font-size: 14px; line-height: 1.5;
@@ -147,12 +185,18 @@
             background-color: var(--bg-color); border-left: 1px solid var(--border-color);
             z-index: 100; transition: right 0.3s ease;
             display: flex; flex-direction: column; overflow: hidden;
+            border-radius: 15px 0 0 15px;
+            box-shadow: -3px 0 15px rgba(0, 0, 0, 0.2);
         }
         .scripthub-sidebar.active {right: 0;}
         .sidebar-close {
             cursor: pointer; opacity: 0.7; font-size: 1.5rem; transition: opacity 0.2s;
         }
         .sidebar-close:hover {opacity: 1;}
+        .sidebar-header {
+            padding: 15px; background-color: var(--editor-bg);
+            border-radius: 15px 0 0 0;
+        }
         .scripts-tabs {
             display: flex; border-bottom: 1px solid var(--border-color);
             background-color: var(--editor-bg);
@@ -179,10 +223,11 @@
             flex: 1;
             overflow-y: auto;
             padding: 10px;
+            border-radius: 0 0 0 15px;
         }
         .script-item {
             background-color: var(--editor-bg); border: 1px solid var(--border-color);
-            border-radius: 4px; margin-bottom: 10px; padding: 12px; cursor: pointer;
+            border-radius: 15px; margin-bottom: 10px; padding: 12px; cursor: pointer;
             transition: all 0.2s; position: relative; overflow: hidden;
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
         }
@@ -204,6 +249,7 @@
             text-shadow: 0 1px 3px rgba(0,0,0,0.6);
             z-index: 1;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border-radius: 15px; 
         }
         .script-item-with-bg:hover {
             transform: translateY(-2px);
@@ -233,6 +279,7 @@
             background-position: center;
             z-index: -2;
             transition: transform 0.3s ease, filter 0.3s ease;
+            border-radius: 15px;
         }
         .script-bg-overlay {
             position: absolute;
@@ -243,24 +290,30 @@
             background: rgba(15, 15, 20, 0.92);
             z-index: -1;
             transition: background 0.3s ease;
+            border-radius: 15px; 
         }
         .script-title {font-size: 1rem; margin-bottom: 6px; color: var(--text-color);}
         .script-game {font-size: 0.8rem; color: #aaa; margin-bottom: 8px;}
-        .script-meta {display: flex; font-size: 0.75rem; color: #888;}
+        .script-meta {
+            display: flex; 
+            font-size: 0.75rem; 
+            color: #888;
+            margin-bottom: 12px;
+        }
         .script-source {
             font-size: 0.8rem; color: #888; margin-bottom: 5px; font-style: italic;
         }
         .script-load-btn {
             background-color: var(--accent-color); color: white; border: none;
             padding: 5px 10px; border-radius: 3px; font-size: 0.8rem;
-            cursor: pointer; margin-top: 8px; transition: background-color 0.2s, transform 0.2s;
+            cursor: pointer; transition: background-color 0.2s, transform 0.2s;
         }
         .script-load-btn:hover {background-color: var(--button-hover);}
         
         .script-direct-btn {
             background-color: #013a63; color: white; border: none;
             padding: 5px 10px; border-radius: 3px; font-size: 0.8rem;
-            cursor: pointer; margin-top: 8px; margin-right: 8px; 
+            cursor: pointer; margin-right: 6px; 
             transition: all 0.2s ease;
         }
         .script-direct-btn:hover {
@@ -313,23 +366,25 @@
         .modal-overlay.active {visibility: visible; opacity: 1;}
         .modal-dialog {
             background-color: var(--editor-bg); border: 1px solid var(--border-color);
-            border-radius: 4px; width: 350px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            border-radius: 15px; width: 350px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
         }
         .modal-header {
             padding: 15px; border-bottom: 1px solid var(--border-color);
             display: flex; justify-content: space-between; align-items: center;
+            border-radius: 15px 15px 0 0; 
         }
         .modal-title {font-size: 1.1rem; font-weight: normal; margin: 0;}
         .modal-content {padding: 15px;}
         .modal-input {
             width: 100%; padding: 8px 10px; background-color: var(--editor-content-bg);
             border: 1px solid var(--border-color); color: var(--text-color);
-            border-radius: 4px; font-family: inherit; font-size: 0.9rem; margin-bottom: 15px;
+            border-radius: 8px; font-family: inherit; font-size: 0.9rem; margin-bottom: 15px;
         }
         .modal-input:focus {outline: none; border-color: var(--accent-color);}
         .modal-buttons {display: flex; justify-content: flex-end; gap: 10px;}
         .modal-btn {
-            padding: 6px 15px; border-radius: 4px; font-size: 0.9rem;
+            padding: 6px 15px; border-radius: 8px; font-size: 0.9rem;
             cursor: pointer; border: none;
         }
         .modal-btn-cancel {background-color: var(--tab-inactive); color: var(--text-color);}
@@ -390,7 +445,7 @@
             border: none;
             color: var(--text-color);
             cursor: pointer;
-            padding: 5px;
+            padding: 4px;
             opacity: 0.7;
             transition: opacity 0.2s, color 0.2s;
             display: flex;
@@ -409,44 +464,131 @@
         .script-actions {
             display: flex;
             align-items: center;
-            margin-left: 8px;
+            margin-left: 4px;
         }
         .script-item .autoexec-container {
             margin-bottom: 0;
-            margin-left: auto;
+            margin-left: 6px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        
+        .load-fade {
+            opacity: 0;
+            animation: fadeIn 0.8s ease forwards;
+        }
+        
+        .load-slide-up {
+            opacity: 0;
+            animation: slideUp 0.8s ease forwards;
+        }
+        
+        .load-slide-down {
+            opacity: 0;
+            animation: slideDown 0.8s ease forwards;
+        }
+        
+        .load-scale {
+            opacity: 0;
+            animation: scaleIn 0.8s ease forwards;
+        }
+        
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+        .delay-5 { animation-delay: 0.5s; }
+
+        .window-controls {
+            display: flex;
+            align-items: center;
+        }
+        
+        .minimize-app-btn, .close-app-btn {
+            cursor: pointer;
+            color: var(--text-color);
+            font-size: 1.4rem;
+            opacity: 0.7;
+            transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+        
+        .minimize-app-btn:hover {
+            opacity: 1;
+            color: #ffcc00;
+            background-color: rgba(255, 204, 0, 0.1);
+        }
+        
+        .close-app-btn {
+            line-height: 0;
+            padding-bottom: 2px; 
+        }
+        
+        .close-app-btn:hover {
+            opacity: 1;
+            color: #ff5555;
+            background-color: rgba(255, 85, 85, 0.1);
         }
     </style>
 </head>
-<body>
-    <div class="header">
+<body class="load-fade">
+    <div class="header load-slide-down">
         <h1 class="title">Nitrogen</h1>
+        <div class="window-controls">
+            <div class="minimize-app-btn" id="minimize-app-btn">-</div>
+            <div class="close-app-btn" id="close-app-btn">×</div>
+        </div>
     </div>
     <div class="main">
-        <div class="tab-container">
+        <div class="tab-container load-slide-down delay-1">
             <div class="tab active" data-tab-id="script1">script.lua<span class="tab-close">×</span></div>
             <button class="new-tab-btn">+</button>
         </div>
         
-        <div class="editor-container">
+        <div class="editor-container load-fade delay-2">
             <div class="editor-wrapper">
                 <textarea id="code-editor" spellcheck="false">print("Nitrogen!")</textarea>
-                <button class="roblox-btn" id="roblox-btn">
+                <button class="roblox-btn load-scale delay-3" id="roblox-btn">
                     <span style="font-size: 24px; font-weight: bold;">R</span>
                 </button>
-                <button class="save-btn" id="save-btn">
+                <button class="save-btn load-scale delay-4" id="save-btn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                         <polyline points="7 3 7 8 15 8"></polyline>
                     </svg>
                 </button>
-                <button class="scripthub-btn" id="scripthub-btn">
+                <button class="scripthub-btn load-scale delay-4" id="scripthub-btn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="4 17 10 11 4 5"></polyline>
                         <line x1="12" y1="19" x2="20" y2="19"></line>
                     </svg>
                 </button>
-                <button class="execute-btn" id="run-btn">
+                <button class="execute-btn load-scale delay-5" id="run-btn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="5 3 19 12 5 21 5 3"></polygon>
                     </svg>
@@ -454,10 +596,23 @@
             </div>
         </div>
         
-        <div class="output-container">
+        <div class="output-container load-slide-up delay-3">
             <div class="output-header">
                 Roblox Console
-                <span class="clear-console" id="clear-console">Clear</span>
+                <div class="output-header-buttons">
+                    <span class="minimize-console" id="minimize-console" title="Minimize console">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="7 13 12 18 17 13"></polyline>
+                            <polyline points="7 6 12 11 17 6"></polyline>
+                        </svg>
+                    </span>
+                    <span class="clear-console" id="clear-console" title="Clear console">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1-2 2v2"></path>
+                        </svg>
+                    </span>
+                </div>
             </div>
             <div id="output"></div>
         </div>
@@ -575,8 +730,16 @@
                 if (Object.keys(scripts).length <= 1) return;
                 
                 if (activeId === id) {
-                    const remaining = Object.keys(scripts).filter(i => i !== id);
-                    if (remaining.length) switchTab(remaining[0]);
+                    const tabIds = Object.keys(scripts);
+                    const currentIndex = tabIds.indexOf(id);
+                    let nextTabId;
+                    if (currentIndex < tabIds.length - 1) {
+                        nextTabId = tabIds[currentIndex + 1];
+                    } else {
+                        nextTabId = tabIds[currentIndex - 1];
+                    }
+                    
+                    switchTab(nextTabId);
                 }
                 
                 document.querySelector(`.tab[data-tab-id="${id}"]`).remove();
@@ -594,24 +757,6 @@
             window.updateConsoleOutput = function(message) {
                 if (typeof message === 'string') {
                     const lowerMsg = message.toLowerCase();
-
-                    if (lowerMsg.includes('[flog::output] server prefix: ')) {
-                        window.pywebview.api.runAutoExecScripts()
-                            .then(result => {
-                                if (result.status === 'success') {
-                                    updateConsoleOutput(`Auto-executed ${result.executedCount} script(s)`);
-                                    if (result.details && Array.isArray(result.details)) {
-                                        result.details.forEach(detail => updateConsoleOutput(detail));
-                                    }
-                                } else {
-                                    updateConsoleOutput(`Auto-execute error: ${result.message}`);
-                                }
-                            })
-                            .catch(error => {
-                                updateConsoleOutput(`Auto-execute error: ${error.message}`);
-                            });
-                        return;
-                    }
 
                     if (lowerMsg.includes('[dflog::') || lowerMsg.includes('dflog::') || 
                         message.includes('[DFlog::') || message.includes('DFlog::')) {
@@ -691,6 +836,38 @@
                 output.innerHTML = '';
                 logMessages.forEach(node => output.appendChild(node));
             });
+            
+            const minimizeConsoleBtn = document.getElementById('minimize-console');
+            const outputContainer = document.querySelector('.output-container');
+            
+            minimizeConsoleBtn.addEventListener('click', () => {
+                outputContainer.classList.toggle('minimized');
+                minimizeConsoleBtn.classList.toggle('minimized');
+                
+                const consoleTitle = document.querySelector('.output-header').firstChild.textContent.trim() === 'Roblox Console' ?
+                    document.querySelector('.output-header').firstChild : 
+                    document.querySelector('.output-header').childNodes[0];
+                
+                if (outputContainer.classList.contains('minimized')) {
+                    consoleTitle.textContent = "-";
+                } else {
+                    consoleTitle.textContent = "Roblox Console";
+                    
+                    setTimeout(() => {
+                        requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+                    }, 300);
+                }
+            });
+            
+            setTimeout(() => {
+                document.querySelectorAll('.load-fade, .load-slide-up, .load-slide-down, .load-scale')
+                    .forEach(el => {
+                        el.style.opacity = '1';
+                        el.style.transform = 'none';
+                        el.classList.remove('load-fade', 'load-slide-up', 'load-slide-down', 'load-scale',
+                                            'delay-1', 'delay-2', 'delay-3', 'delay-4', 'delay-5');
+                    });
+            }, 2000);
             
             function executeScript() {
                 const logMessages = Array.from(output.childNodes).filter(node => 
@@ -842,27 +1019,32 @@
                     scriptItem.innerHTML = `
                         <div class="script-title">${script.name}</div>
                         <div class="script-source">Locally saved script</div>
-                        <div style="display: flex; align-items: center; margin-top: 8px;">
-                            <button class="script-load-btn" data-script-local="true" data-script-name="${script.name}">Load Script</button>
-                            <div class="script-actions">
-                                <button class="script-action-btn script-rename-btn" data-script-name="${script.name}" title="Rename script">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                                    </svg>
-                                </button>
-                                <button class="script-action-btn script-delete-btn" data-script-name="${script.name}" title="Delete script">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="3 6 5 6 21 6"></polyline>
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                    </svg>
-                                </button>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+                            <div class="script-buttons">
+                                <button class="script-direct-btn" data-script-local="true" data-script-name="${script.name}">Direct</button>
+                                <button class="script-load-btn" data-script-local="true" data-script-name="${script.name}">Load</button>
                             </div>
-                            <div class="autoexec-container">
-                                <span class="autoexec-label">Auto Exec</span>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" class="script-autoexec-toggle" data-script-name="${script.name}" ${isAutoExec ? 'checked' : ''}>
-                                    <span class="toggle-slider"></span>
-                                </label>
+                            <div style="display: flex; align-items: center;">
+                                <div class="script-actions">
+                                    <button class="script-action-btn script-rename-btn" data-script-name="${script.name}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="script-action-btn script-delete-btn" data-script-name="${script.name}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1-2 2v2"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="autoexec-container">
+                                    <span class="autoexec-label">Auto Exec</span>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="script-autoexec-toggle" data-script-name="${script.name}" ${isAutoExec ? 'checked' : ''}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -874,6 +1056,13 @@
                     button.addEventListener('click', (e) => {
                         e.stopPropagation();
                         loadLocalScript(button.dataset.scriptName);
+                    });
+                });
+                
+                document.querySelectorAll('.script-direct-btn[data-script-local="true"]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        directExecuteLocalScript(button.dataset.scriptName);
                     });
                 });
                 
@@ -980,7 +1169,7 @@
                             <span>Added: ${new Date(script.createdAt).toLocaleDateString()}</span>
                             ${script.key ? '<span class="requires-key">- Likely requires key</span>' : ''}
                         </div>
-                        <div class="script-buttons">
+                        <div class="script-buttons" style="margin-top: 4px;">
                             <button class="script-direct-btn" data-script-id="${script._id}">Direct Execute</button>
                             <button class="script-load-btn" data-script-id="${script._id}">Load Script</button>
                         </div>
@@ -1043,6 +1232,34 @@
                 } else {
                     updateConsoleOutput(`Error: Could not execute script. Script content not available.`);
                 }
+            }
+            
+            function directExecuteLocalScript(scriptName) {
+                window.pywebview.api.getLocalScripts()
+                    .then(data => {
+                        if (data.status === 'success') {
+                            const script = data.scripts.find(s => s.name === scriptName);
+                            
+                            if (script && script.content) {
+                                window.pywebview.api.execute_script(script.content)
+                                    .then(data => {
+                                        updateConsoleOutput(`Executing: "${scriptName}"`);
+                                        updateConsoleOutput(data.message);
+                                        if (data.details && Array.isArray(data.details)) {
+                                            data.details.forEach(detail => updateConsoleOutput(detail));
+                                        }
+                                    })
+                                    .catch(error => updateConsoleOutput(`Error: ${error.message}`));
+                            } else {
+                                updateConsoleOutput(`Error: Script "${scriptName}" not found or has no content.`);
+                            }
+                        } else {
+                            updateConsoleOutput(`Error loading local scripts: ${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        updateConsoleOutput(`Error loading script: ${error.message}`);
+                    });
             }
             
             scripthubBtn.addEventListener('click', toggleSidebar);
@@ -1326,6 +1543,14 @@
                         }
                     }
                 }
+            });
+
+            document.getElementById('close-app-btn').addEventListener('click', () => {
+                window.pywebview.api.quit_app();
+            });
+
+            document.getElementById('minimize-app-btn').addEventListener('click', () => {
+                window.pywebview.api.minimize_app();
             });
         });
     </script>
