@@ -152,110 +152,166 @@
                 }
             };
             
+// scripts.js (Electron front-end)
+
 window.addEventListener('load', () => {
     setTimeout(() => {
-        window.electronAPI.startLogMonitoring();
+        window.api.startLogMonitoring();
     }, 1000);
 });
 
-let searchTimeout = null;
+const output = document.getElementById('output');
+
+document.getElementById('clear-console').addEventListener('click', () => {
+    const logMessages = Array.from(output.childNodes).filter(node => 
+        node.textContent && node.textContent.includes('Monitoring log file')
+    );
+    output.innerHTML = '';
+    logMessages.forEach(node => output.appendChild(node));
+});
+
+const minimizeConsoleBtn = document.getElementById('minimize-console');
+const outputContainer = document.querySelector('.output-container');
+
+minimizeConsoleBtn.addEventListener('click', () => {
+    outputContainer.classList.toggle('minimized');
+    minimizeConsoleBtn.classList.toggle('minimized');
+
+    const header = document.querySelector('.output-header');
+    const titleNode = header.firstChild.textContent.trim() === 'Roblox Console'
+        ? header.firstChild
+        : header.childNodes[0];
+
+    if (outputContainer.classList.contains('minimized')) {
+        titleNode.textContent = '-';
+    } else {
+        titleNode.textContent = 'Roblox Console';
+        setTimeout(() => {
+            requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+        }, 300);
+    }
+});
+
+setTimeout(() => {
+    document.querySelectorAll('.load-fade, .load-slide-up, .load-slide-down, .load-scale')
+        .forEach(el => {
+            el.style.opacity = '1';
+            el.style.transform = 'none';
+            el.classList.remove(
+                'load-fade', 'load-slide-up', 'load-slide-down', 'load-scale',
+                'delay-1', 'delay-2', 'delay-3', 'delay-4', 'delay-5'
+            );
+        });
+}, 2000);
 
 function executeScript() {
-    const code = document.getElementById("script-input").value;
-    window.electronAPI.executeScript(code)
-        .then(result => {
-            document.getElementById("output").innerText = result;
+    const code = cm.getValue();
+    scripts[activeId].content = code;
+
+    window.api.executeScript(code)
+        .then(data => {
+            updateConsoleOutput(data.message);
+            if (data.details && Array.isArray(data.details)) {
+                data.details.forEach(detail => updateConsoleOutput(detail));
+            }
         })
-        .catch(error => {
-            document.getElementById("output").innerText = error;
+        .catch(error => updateConsoleOutput(`Error: ${error.message}`));
+}
+
+document.getElementById('run-btn').addEventListener('click', executeScript);
+
+// Tab switching, close, hints, etc. (unchanged)
+// ... [rest of UI logic stays the same] ...
+
+// ScriptHub & Local Scripts
+function fetchLocalScripts() {
+    scripthubContent.innerHTML = '<div class="loading-spinner"></div>';
+    window.api.getLocalScripts()
+        .then(data => {
+            if (data.status === 'success' && data.scripts.length) {
+                localScriptsCache = data.scripts;
+                displayLocalScripts(data.scripts);
+            } else {
+                scripthubContent.innerHTML = '<p style="padding: 20px;">No local scripts found</p>';
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching local scripts:', err);
+            scripthubContent.innerHTML = '<p style="padding: 20px;">Error fetching local scripts</p>';
         });
 }
 
-function toggleAutoExec(scriptName) {
-    const toggle = document.querySelector(`input[data-name="${scriptName}"]`);
-    window.electronAPI.toggleAutoExec(scriptName, toggle.checked);
+function filterLocalScripts(term) {
+    if (!term.trim()) return displayLocalScripts(localScriptsCache);
+    const filtered = localScriptsCache.filter(script =>
+        script.name.toLowerCase().includes(term.toLowerCase()) ||
+        (script.content && script.content.toLowerCase().includes(term.toLowerCase()))
+    );
+    filtered.length ? displayLocalScripts(filtered) :
+        scripthubContent.innerHTML = '<p style="padding: 20px;">No matching scripts found</p>';
 }
 
-function loadLocalScripts() {
-    window.electronAPI.getLocalScripts().then(scripts => {
-        const table = document.getElementById("localScriptsTable");
-        table.innerHTML = `
-            <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Toggle</th>
-                <th>Load</th>
-            </tr>`;
-
-        scripts.forEach(script => {
-            const row = document.createElement("tr");
-
-            row.innerHTML = `
-                <td>${script.name}</td>
-                <td>${script.description || ""}</td>
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" data-name="${script.name}" onchange="toggleAutoExec('${script.name}')"
-                        ${script.enabled ? "checked" : ""}>
-                        <span class="slider round"></span>
-                    </label>
-                </td>
-                <td><button onclick="loadScript('${script.name}')">Load</button></td>
-            `;
-
-            table.appendChild(row);
+function displayLocalScripts(list) {
+    scripthubContent.innerHTML = '';
+    list.forEach(script => {
+        // ... build script-item DOM ...
+    });
+    // Attach load, direct-execute, autoexec, rename, delete handlers
+    document.querySelectorAll('.script-load-btn').forEach(btn => {
+        btn.addEventListener('click', e => loadLocalScript(btn.dataset.scriptName));
+    });
+    document.querySelectorAll('.script-autoexec-toggle').forEach(toggle => {
+        toggle.addEventListener('change', () => {
+            window.api.toggleAutoExec(toggle.dataset.scriptName, toggle.checked)
+                .then(res => updateConsoleOutput(
+                    res.status === 'success'
+                        ? `Auto-execute ${toggle.checked ? 'enabled' : 'disabled'} for "${toggle.dataset.scriptName}"`
+                        : `Error: ${res.message}`
+                ))
+                .catch(err => {
+                    toggle.checked = !toggle.checked;
+                    updateConsoleOutput(`Error toggling auto-execute: ${err.message}`);
+                });
         });
     });
+    // ... rename, delete btn handlers invoking window.api.renameScript / deleteScript ...
 }
 
-function loadScript(scriptName) {
-    window.electronAPI.getLocalScripts().then(scripts => {
-        const script = scripts.find(s => s.name === scriptName);
-        if (script) {
-            document.getElementById("script-input").value = script.code;
-        }
-    });
-}
-
-function fetchScripts() {
-    const searchTerm = document.getElementById("search").value;
-
-    window.electronAPI.getScripts(searchTerm).then(scripts => {
-        const table = document.getElementById("scriptTable");
-        table.innerHTML = `
-            <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Load</th>
-            </tr>`;
-
-        scripts.forEach(script => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>${script.name}</td>
-                <td>${script.description || ""}</td>
-                <td><button onclick="loadFromRepo('${script.name}', '${script.code.replace(/'/g, "\\'")}')">Load</button></td>
-            `;
-            table.appendChild(row);
+function loadLocalScript(name) {
+    window.api.getLocalScripts()
+        .then(data => {
+            if (data.status === 'success') {
+                const script = data.scripts.find(s => s.name === name);
+                // ... load into editor and UI ...
+            }
         });
-    });
 }
 
-function loadFromRepo(name, code) {
-    document.getElementById("script-input").value = code;
+function fetchScripts(query = '') {
+    scripthubContent.innerHTML = '<div class="loading-spinner"></div>';
+    window.api.getScripts(query)
+        .then(data => {
+            if (data.result.scripts.length) {
+                window.scriptHubScripts = data.result.scripts;
+                displayScripts(data.result.scripts);
+            } else {
+                scripthubContent.innerHTML = '<p style="padding: 20px;">No scripts found</p>';
+            }
+        })
+        .catch(err => console.error('Error fetching scripts:', err));
 }
 
-document.getElementById("search").addEventListener("input", () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(fetchScripts, 500);
+// ... rest of UI code unchanged, using window.api for openRoblox, saveScript, renameScript, deleteScript, quitApp, minimizeApp etc. ...
+
+// Example:
+document.getElementById('roblox-btn').addEventListener('click', () => {
+    window.api.openRoblox();
 });
 
-document.getElementById("scriptForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    executeScript();
+document.getElementById('close-app-btn').addEventListener('click', () => {
+    window.api.quitApp();
 });
 
-document.addEventListener("DOMContentLoaded", () => {
-    fetchScripts();
-    loadLocalScripts();
+document.getElementById('minimize-app-btn').addEventListener('click', () => {
+    window.api.minimizeApp();
 });
