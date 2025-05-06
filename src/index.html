@@ -824,20 +824,112 @@
                 }
             };
             
-           // BEFORE (pywebview)
 window.addEventListener('load', () => {
     setTimeout(() => {
-        window.pywebview.api.start_log_monitoring()
+        window.electronAPI.startLogMonitoring();
     }, 1000);
 });
 
-// AFTER (Electron)
-const { ipcRenderer } = require('electron');
+let searchTimeout = null;
 
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        ipcRenderer.send(start-log-monitoring');
-    }, 1000);
+function executeScript() {
+    const code = document.getElementById("script-input").value;
+    window.electronAPI.executeScript(code)
+        .then(result => {
+            document.getElementById("output").innerText = result;
+        })
+        .catch(error => {
+            document.getElementById("output").innerText = error;
+        });
+}
+
+function toggleAutoExec(scriptName) {
+    const toggle = document.querySelector(`input[data-name="${scriptName}"]`);
+    window.electronAPI.toggleAutoExec(scriptName, toggle.checked);
+}
+
+function loadLocalScripts() {
+    window.electronAPI.getLocalScripts().then(scripts => {
+        const table = document.getElementById("localScriptsTable");
+        table.innerHTML = `
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Toggle</th>
+                <th>Load</th>
+            </tr>`;
+
+        scripts.forEach(script => {
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+                <td>${script.name}</td>
+                <td>${script.description || ""}</td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" data-name="${script.name}" onchange="toggleAutoExec('${script.name}')"
+                        ${script.enabled ? "checked" : ""}>
+                        <span class="slider round"></span>
+                    </label>
+                </td>
+                <td><button onclick="loadScript('${script.name}')">Load</button></td>
+            `;
+
+            table.appendChild(row);
+        });
+    });
+}
+
+function loadScript(scriptName) {
+    window.electronAPI.getLocalScripts().then(scripts => {
+        const script = scripts.find(s => s.name === scriptName);
+        if (script) {
+            document.getElementById("script-input").value = script.code;
+        }
+    });
+}
+
+function fetchScripts() {
+    const searchTerm = document.getElementById("search").value;
+
+    window.electronAPI.getScripts(searchTerm).then(scripts => {
+        const table = document.getElementById("scriptTable");
+        table.innerHTML = `
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Load</th>
+            </tr>`;
+
+        scripts.forEach(script => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${script.name}</td>
+                <td>${script.description || ""}</td>
+                <td><button onclick="loadFromRepo('${script.name}', '${script.code.replace(/'/g, "\\'")}')">Load</button></td>
+            `;
+            table.appendChild(row);
+        });
+    });
+}
+
+function loadFromRepo(name, code) {
+    document.getElementById("script-input").value = code;
+}
+
+document.getElementById("search").addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(fetchScripts, 500);
+});
+
+document.getElementById("scriptForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    executeScript();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+    fetchScripts();
+    loadLocalScripts();
 });
 
     </script>
