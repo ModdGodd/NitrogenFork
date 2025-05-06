@@ -13,7 +13,7 @@ const BACKEND_VERSION = 'v2.0';
 // Utility: get latest GitHub release tag
 async function getLatestVersion() {
   try {
-    const res = await axios.head('https://github.com/JadXV/Nitrogen/releases/latest', {
+    const res = await axios.head('https://github.com/ModdGodd/NitrogenFork/releases/latest', {
       maxRedirects: 0,
       validateStatus: status => status >= 200 && status < 400
     });
@@ -38,7 +38,7 @@ async function checkForUpdates() {
       defaultId: 0
     });
     if (response === 0) {
-      exec('curl -fsSL https://raw.githubusercontent.com/JadXV/Nitrogen/refs/heads/main/install.sh | bash', (err) => {
+      exec('curl -fsSL https://raw.githubusercontent.com/ModdGodd/NitrogenFork/refs/heads/main/install.sh | bash', (err) => {
         if (err) console.error('Install error:', err);
         dialog.showMessageBox(mainWindow, {
           type: 'info',
@@ -220,27 +220,3 @@ ipcMain.on('stop-log-monitoring', (event) => api.stopLogMonitoring(event));
 ipcMain.on('set-log-refresh-rate', (event, r) => api.setLogRefreshRate(event, r));
 ipcMain.handle('quit-app', () => api.quitApp());
 ipcMain.handle('minimize-app', () => api.minimizeApp());
-
-// preload.js
-// This file should be placed alongside main.js
-d// in your project root, referenced by createWindow().
-
-// preload.js
-const { contextBridge, ipcRenderer } = require('electron');
-
-contextBridge.exposeInMainWorld('api', {
-  executeScript: (script) => ipcRenderer.invoke('execute-script', script),
-  getScripts: (q) => ipcRenderer.invoke('get-scripts', q),
-  openRoblox: () => ipcRenderer.invoke('open-roblox'),
-  saveScript: (name, content, autoExec) => ipcRenderer.invoke('save-script', name, content, autoExec),
-  toggleAutoExec: (name, enabled) => ipcRenderer.invoke('toggle-autoexec', name, enabled),
-  getLocalScripts: () => ipcRenderer.invoke('get-local-scripts'),
-  deleteScript: (name) => ipcRenderer.invoke('delete-script', name),
-  renameScript: (oldName, newName) => ipcRenderer.invoke('rename-script', oldName, newName),
-  startLogMonitoring: () => ipcRenderer.send('start-log-monitoring'),
-  stopLogMonitoring: () => ipcRenderer.send('stop-log-monitoring'),
-  setLogRefreshRate: (rate) => ipcRenderer.send('set-log-refresh-rate', rate),
-  onLogUpdate: (cb) => ipcRenderer.on('log-update', (_, lines) => cb(lines)),
-  quitApp: () => ipcRenderer.invoke('quit-app'),
-  minimizeApp: () => ipcRenderer.invoke('minimize-app'),
-});
