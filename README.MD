@@ -1,5 +1,6 @@
-# Nitrogen ❄️
+# NitrogenFork ❄️
 
+A Fork of Nitrogen modified to use javascript instead of python and use Electron for packaging
 Nitrogen is a modern, clean and feature-packed custom UI/wrapper for Hydrogen with a sleek interface. It provides a streamlined experience for executing, managing, and discovering scripts.
 
 ## ✨ Features
