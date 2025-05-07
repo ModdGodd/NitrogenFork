@@ -160,8 +160,6 @@ window.addEventListener('load', () => {
     }, 1000);
 });
 
-const output = document.getElementById('output');
-
 document.getElementById('clear-console').addEventListener('click', () => {
     const logMessages = Array.from(output.childNodes).filter(node => 
         node.textContent && node.textContent.includes('Monitoring log file')
