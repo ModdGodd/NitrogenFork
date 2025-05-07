@@ -57,8 +57,9 @@ function createWindow() {
     minWidth: 800, minHeight: 600,
     frame: false, transparent: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
-    }
+    preload: path.join(__dirname, 'preload.js'),
+    contextIsolation: true,
+    nodeIntegration: false
   });
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
   mainWindow.once('ready-to-show', () => checkForUpdates());
