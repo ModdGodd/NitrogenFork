@@ -1,6 +1,7 @@
+// preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('electronAPI', {
+contextBridge.exposeInMainWorld('api', {
     executeScript: (code) => ipcRenderer.invoke('execute-script', code),
     getLocalScripts: () => ipcRenderer.invoke('get-local-scripts'),
     toggleAutoExec: (name, enabled) => ipcRenderer.invoke('toggle-autoexec', { name, enabled }),
