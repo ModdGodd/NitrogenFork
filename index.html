@@ -668,6 +668,891 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/anyword-hint.min.js"></script>
-    <script src="scripts.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const luaKeywords = ["and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while"];
+            const luaFunctions = ["assert", "collectgarbage", "dofile", "error", "getmetatable", "ipairs", "load", "loadfile", "next", "pairs", "pcall", "print", "rawequal", "rawget", "rawset", "require", "select", "setmetatable", "tonumber", "tostring", "type", "xpcall", "string.byte", "string.char", "string.dump", "string.find", "string.format", "string.gmatch", "string.gsub", "string.len", "string.lower", "string.match", "string.rep", "string.reverse", "string.sub", "string.upper", "table.concat", "table.insert", "table.pack", "table.remove", "table.sort", "table.unpack", "math.abs", "math.acos", "math.asin", "math.atan", "math.ceil", "math.cos", "math.deg", "math.exp", "math.floor", "math.log", "math.max", "math.min", "math.pi", "math.rad", "math.random", "math.randomseed", "math.sin", "math.sqrt", "math.tan"];
+            
+            CodeMirror.registerHelper("hint", "lua", (editor) => {
+                const cur = editor.getCursor(), token = editor.getTokenAt(cur);
+                const start = token.string.trim() !== "" ? token.start : cur.ch;
+                const currentWord = token.string.trim() !== "" ? token.string : "";
+                const list = [...luaKeywords, ...luaFunctions].filter(item => item.indexOf(currentWord) === 0);
+                
+                return {
+                    list: list.length ? list : [],
+                    from: CodeMirror.Pos(cur.line, start),
+                    to: CodeMirror.Pos(cur.line, cur.ch)
+                };
+            });
+            
+            const cm = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+                mode: "text/x-lua", theme: "monokai", lineNumbers: true,
+                matchBrackets: true, indentUnit: 4, tabSize: 4,
+                indentWithTabs: false, smartIndent: true,
+                extraKeys: {
+                    "Tab": cm => cm.somethingSelected() ? cm.indentSelection("add") : cm.replaceSelection("    "),
+                    "Ctrl-Space": "autocomplete"
+                }
+            });
+            
+            const MAX_TABS = 8;
+            const output = document.getElementById('output');
+            const tabContainer = document.querySelector('.tab-container');
+            const newTabBtn = document.querySelector('.new-tab-btn');
+            
+            let scripts = {'script1': {name: 'script.lua'}};
+            let activeId = 'script1', nextId = 2;
+            
+            function createTab(id, name, active = false) {
+                const tab = document.createElement('div');
+                tab.className = `tab ${active ? 'active' : ''}`;
+                tab.dataset.tabId = id;
+                tab.innerHTML = `${name}<span class="tab-close">×</span>`;
+                return tab;
+            }
+            
+            function switchTab(id) {
+                scripts[activeId].content = cm.getValue();
+                document.querySelectorAll('.tab').forEach(tab => 
+                    tab.classList.toggle('active', tab.dataset.tabId === id));
+                activeId = id;
+                cm.setValue(scripts[id].content);
+                
+                setTimeout(() => {
+                    cm.setCursor(0, 0);
+                    cm.focus();
+                }, 0);
+            }
+            
+            function closeTab(id) {
+                if (Object.keys(scripts).length <= 1) return;
+                
+                if (activeId === id) {
+                    const tabIds = Object.keys(scripts);
+                    const currentIndex = tabIds.indexOf(id);
+                    let nextTabId;
+                    if (currentIndex < tabIds.length - 1) {
+                        nextTabId = tabIds[currentIndex + 1];
+                    } else {
+                        nextTabId = tabIds[currentIndex - 1];
+                    }
+                    
+                    switchTab(nextTabId);
+                }
+                
+                document.querySelector(`.tab[data-tab-id="${id}"]`).remove();
+                delete scripts[id];
+                updateTabBtn();
+            }
+            
+            function updateTabBtn() {
+                const count = Object.keys(scripts).length;
+                newTabBtn.disabled = count >= MAX_TABS;
+                newTabBtn.style.opacity = count >= MAX_TABS ? '0.5' : '1';
+                newTabBtn.style.cursor = count >= MAX_TABS ? 'not-allowed' : 'pointer';
+            }
+            
+            window.updateConsoleOutput = function(message) {
+                if (typeof message === 'string') {
+                    const lowerMsg = message.toLowerCase();
+
+                    if (lowerMsg.includes('[dflog::') || lowerMsg.includes('dflog::') || 
+                        message.includes('[DFlog::') || message.includes('DFlog::')) {
+                        return; 
+                    }
+
+                    if (lowerMsg.includes('[channel]') || lowerMsg.includes('channel]')) {
+                        return; 
+                    }
+                    
+                    const messageElement = document.createElement('div');
+                    let logType = null, prefix = '', msgContent = message.trim();
+
+                    if (message.includes('[FLog::')) {
+                        if (message.includes('[FLog::Output]')) {
+                            logType = 'log-output';
+                            prefix = '[Output]: ';
+                            message = message.replace('[FLog::Output]', '').trim();
+                        } else if (message.includes('[FLog::Warning]')) {
+                            logType = 'log-warning';
+                            prefix = '[Warning]: ';
+                            message = message.replace('[FLog::Warning]', '').trim();
+                        } else if (message.includes('[FLog::Error]')) {
+                            logType = 'log-error';
+                            prefix = '[Error]: ';
+                            message = message.replace('[FLog::Error]', '').trim();
+                        } else {
+                            return; 
+                        }
+                        
+                        msgContent = message.replace(/\[FLog::[^]]+\]/, '').trim();
+                        const matches = msgContent.match(/(?:[0-9a-fA-F,.:\-TZ]+\s+)+(.+)$/);
+                        if (matches && matches[1]) {
+                            msgContent = matches[1];
+                        } else {
+                            const wordStart = msgContent.search(/[a-zA-Z_](?![^a-zA-Z_]*[0-9a-fA-F,.:\-])/);
+                            if (wordStart >= 0) msgContent = msgContent.substring(wordStart);
+                        }
+                    }
+                    
+                    if (logType) {
+                        const logPrefix = document.createElement('span');
+                        logPrefix.className = logType;
+                        logPrefix.textContent = prefix;
+                        messageElement.appendChild(logPrefix);
+                        messageElement.appendChild(document.createTextNode(msgContent));
+                    } else {
+                        messageElement.textContent = msgContent;
+                    }
+                    
+                    output.appendChild(messageElement);
+                    requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+                } else if (message !== undefined && message !== null) {
+                    const messageElement = document.createElement('div');
+                    messageElement.textContent = String(message);
+                    output.appendChild(messageElement);
+                    requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+                }
+            };
+            window.batchUpdateConsole = function(lines) {
+                if (Array.isArray(lines)) {
+                    for (const line of lines) {
+                        updateConsoleOutput(line);
+                    }
+                }
+            };
+            
+            window.addEventListener('load', () => {
+                setTimeout(() => {
+                    window.api.start_log_monitoring()
+                }, 1000);
+            });
+            
+            document.getElementById('clear-console').addEventListener('click', () => {
+                const logMessages = Array.from(output.childNodes).filter(node => 
+                    node.textContent && node.textContent.includes('Monitoring log file'));
+                output.innerHTML = '';
+                logMessages.forEach(node => output.appendChild(node));
+            });
+            
+            const minimizeConsoleBtn = document.getElementById('minimize-console');
+            const outputContainer = document.querySelector('.output-container');
+            
+            minimizeConsoleBtn.addEventListener('click', () => {
+                outputContainer.classList.toggle('minimized');
+                minimizeConsoleBtn.classList.toggle('minimized');
+                
+                const consoleTitle = document.querySelector('.output-header').firstChild.textContent.trim() === 'Roblox Console' ?
+                    document.querySelector('.output-header').firstChild : 
+                    document.querySelector('.output-header').childNodes[0];
+                
+                if (outputContainer.classList.contains('minimized')) {
+                    consoleTitle.textContent = "-";
+                } else {
+                    consoleTitle.textContent = "Roblox Console";
+                    
+                    setTimeout(() => {
+                        requestAnimationFrame(() => output.scrollTop = output.scrollHeight);
+                    }, 300);
+                }
+            });
+            
+            setTimeout(() => {
+                document.querySelectorAll('.load-fade, .load-slide-up, .load-slide-down, .load-scale')
+                    .forEach(el => {
+                        el.style.opacity = '1';
+                        el.style.transform = 'none';
+                        el.classList.remove('load-fade', 'load-slide-up', 'load-slide-down', 'load-scale',
+                                            'delay-1', 'delay-2', 'delay-3', 'delay-4', 'delay-5');
+                    });
+            }, 2000);
+            
+            function executeScript() {
+                const logMessages = Array.from(output.childNodes).filter(node => 
+                    node.textContent && node.textContent.includes('Monitoring log file'));
+                
+                const code = cm.getValue();
+                scripts[activeId].content = code;
+                
+                window.api.execute_script(code)
+                    .then(data => {
+                        updateConsoleOutput(data.message);
+                        if (data.details && Array.isArray(data.details)) {
+                            data.details.forEach(detail => updateConsoleOutput(detail));
+                        }
+                    })
+                    .catch(error => updateConsoleOutput(`Error: ${error.message}`));
+            }
+            
+            document.getElementById('run-btn').addEventListener('click', executeScript);
+            
+            tabContainer.addEventListener('click', e => {
+                const tab = e.target.closest('.tab');
+                if (!tab) return;
+                
+                if (e.target.classList.contains('tab-close')) closeTab(tab.dataset.tabId);
+                else switchTab(tab.dataset.tabId);
+            });
+            
+            updateTabBtn();
+            
+            cm.on("keyup", (cm, e) => {
+                if (!cm.state.completionActive && e.keyCode >= 65 && e.keyCode <= 90) {
+                    cm.showHint({completeSingle: false});
+                }
+            });
+
+            const scripthubBtn = document.getElementById('scripthub-btn');
+            const scripthubSidebar = document.querySelector('.scripthub-sidebar');
+            const sidebarOverlay = document.querySelector('.sidebar-overlay');
+            const sidebarClose = document.querySelector('.sidebar-close');
+            const scripthubContent = document.getElementById('scripthub-content');
+            const searchContainer = document.getElementById('search-container');
+            const scriptsTabs = document.querySelectorAll('.scripts-tab');
+            let currentScriptsTab = 'local';
+            let localScriptsCache = [];
+            
+            function toggleSidebar() {
+                scripthubSidebar.classList.toggle('active');
+                sidebarOverlay.classList.toggle('active');
+                
+                if (scripthubSidebar.classList.contains('active')) {
+                    searchContainer.style.display = 'block';
+                    
+                    const searchInput = document.getElementById('scripthub-search');
+                    searchInput.placeholder = currentScriptsTab === 'local' ? 
+                        "Search local scripts..." : 
+                        "Search ScriptBlox...";
+                    
+                    searchInput.value = '';
+                    
+                    if (currentScriptsTab === 'local') {
+                        fetchLocalScripts();
+                    } else {
+                        fetchScripts();
+                    }
+                }
+            }
+            
+            scriptsTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabType = tab.dataset.tab;
+                    scriptsTabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentScriptsTab = tabType;
+                    
+                    const searchInput = document.getElementById('scripthub-search');
+                    searchInput.placeholder = tabType === 'local' ? 
+                        "Search local scripts..." : 
+                        "Search ScriptBlox...";
+                    
+                    const currentSearchTerm = searchInput.value;
+                    
+                    if (tabType === 'local') {
+                        fetchLocalScripts();
+                        if (currentSearchTerm.trim() !== '') {
+                            filterLocalScripts(currentSearchTerm);
+                        }
+                    } else {
+                        fetchScripts(currentSearchTerm);
+                    }
+                });
+            });
+            
+            const saveBtn = document.getElementById('save-btn');
+            saveBtn.addEventListener('click', () => saveScript(activeId));
+            
+            function debounce(func, wait) {
+                let timeout;
+                return function(...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), wait);
+                };
+            }
+            
+            function fetchLocalScripts() {
+                scripthubContent.innerHTML = '<div class="loading-spinner"></div>';
+                window.api.getLocalScripts()
+                    .then(data => {
+                        if (data.status === 'success' && data.scripts.length > 0) {
+                            localScriptsCache = data.scripts;
+                            displayLocalScripts(data.scripts);
+                        } else {
+                            scripthubContent.innerHTML = '<p style="padding: 20px;">No local scripts found</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching local scripts:', error);
+                        scripthubContent.innerHTML = '<p style="padding: 20px;">Error fetching local scripts</p>';
+                    });
+            }
+            
+            function filterLocalScripts(searchTerm) {
+                if (!searchTerm || searchTerm.trim() === '') {
+                    displayLocalScripts(localScriptsCache);
+                    return;
+                }
+                
+                const filtered = localScriptsCache.filter(script => 
+                    script.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (script.content && script.content.toLowerCase().includes(searchTerm.toLowerCase()))
+                );
+                
+                if (filtered.length > 0) {
+                    displayLocalScripts(filtered);
+                } else {
+                    scripthubContent.innerHTML = '<p style="padding: 20px;">No matching scripts found</p>';
+                }
+            }
+            
+            function displayLocalScripts(localScripts) {
+                scripthubContent.innerHTML = '';
+                
+                localScripts.forEach(script => {
+                    const scriptItem = document.createElement('div');
+                    scriptItem.className = 'script-item';
+                    
+                    const isAutoExec = script.autoExec || false;
+                    
+                    scriptItem.innerHTML = `
+                        <div class="script-title">${script.name}</div>
+                        <div class="script-source">Locally saved script</div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+                            <div class="script-buttons">
+                                <button class="script-direct-btn" data-script-local="true" data-script-name="${script.name}">Direct</button>
+                                <button class="script-load-btn" data-script-local="true" data-script-name="${script.name}">Load</button>
+                            </div>
+                            <div style="display: flex; align-items: center;">
+                                <div class="script-actions">
+                                    <button class="script-action-btn script-rename-btn" data-script-name="${script.name}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="script-action-btn script-delete-btn" data-script-name="${script.name}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1-2 2v2"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="autoexec-container">
+                                    <span class="autoexec-label">Auto Exec</span>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" class="script-autoexec-toggle" data-script-name="${script.name}" ${isAutoExec ? 'checked' : ''}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    scripthubContent.appendChild(scriptItem);
+                });
+                
+                document.querySelectorAll('.script-load-btn[data-script-local="true"]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        loadLocalScript(button.dataset.scriptName);
+                    });
+                });
+                
+                document.querySelectorAll('.script-direct-btn[data-script-local="true"]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        directExecuteLocalScript(button.dataset.scriptName);
+                    });
+                });
+                
+                document.querySelectorAll('.script-autoexec-toggle').forEach(toggle => {
+                    toggle.addEventListener('change', (e) => {
+                        e.stopPropagation();
+                        window.api.toggleAutoExec(toggle.dataset.scriptName, toggle.checked)
+                            .then(result => {
+                                if (result.status === 'success') {
+                                    updateConsoleOutput(`Auto-execute ${toggle.checked ? 'enabled' : 'disabled'} for "${toggle.dataset.scriptName}"`);
+                                } else {
+                                    toggle.checked = !toggle.checked; 
+                                    updateConsoleOutput(`Error: ${result.message}`);
+                                }
+                            })
+                            .catch(error => {
+                                toggle.checked = !toggle.checked;
+                                updateConsoleOutput(`Error toggling auto-execute: ${error.message}`);
+                            });
+                    });
+                });
+
+                document.querySelectorAll('.script-rename-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        renameLocalScript(button.dataset.scriptName);
+                    });
+                });
+
+                document.querySelectorAll('.script-delete-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteLocalScript(button.dataset.scriptName);
+                    });
+                });
+            }
+            
+            function loadLocalScript(scriptName) {
+                window.api.getLocalScripts()
+                    .then(data => {
+                        if (data.status === 'success') {
+                            const script = data.scripts.find(s => s.name === scriptName);
+                            
+                            if (script) {
+                                if (Object.keys(scripts).length >= MAX_TABS) {
+                                    output.innerHTML = `Maximum tabs reached (${MAX_TABS}). Close a tab first.`;
+                                    return;
+                                }
+                                
+                                const id = `script${nextId++}`;
+                                scripts[id] = {name: script.name, content: script.content};
+                                tabContainer.insertBefore(createTab(id, script.name), newTabBtn);
+                                switchTab(id);
+                                updateTabBtn();
+                                toggleSidebar();
+                                
+                                output.innerHTML = `Local script "${script.name}" loaded successfully.`;
+                            } else {
+                                output.innerHTML = `Error: Script "${scriptName}" not found.`;
+                            }
+                        } else {
+                            output.innerHTML = `Error loading local scripts: ${data.message}`;
+                        }
+                    })
+                    .catch(error => {
+                        output.innerHTML = `Error loading script: ${error.message}`;
+                    });
+            }
+            
+            function fetchScripts(searchTerm = '') {
+                scripthubContent.innerHTML = '<div class="loading-spinner"></div>';
+                window.api.getScripts(searchTerm)
+                    .then(data => {
+                        if (data.result.scripts.length > 0) {
+                            window.scriptHubScripts = data.result.scripts;
+                            displayScripts(data.result.scripts);
+                        } else {
+                            scripthubContent.innerHTML = '<p style="padding: 20px;">No scripts found</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching scripts:', error);
+                        scripthubContent.innerHTML = '<p style="padding: 20px;">Error fetching scripts</p>';
+                    });
+            }
+            
+            function displayScripts(scripts) {
+                scripthubContent.innerHTML = '';
+                
+                scripts.forEach(script => {
+                    const scriptItem = document.createElement('div');
+                    scriptItem.className = 'script-item script-item-with-bg';
+                    
+                    const gameImageUrl = script.game.imageUrl === "/images/no-script.webp" ? 
+                        "https://www.publicdomainpictures.net/pictures/220000/velka/planet-1494403454Zmz.jpg" : 
+                        script.game.imageUrl;
+
+                    scriptItem.innerHTML = `
+                        ${gameImageUrl ? `<div class="script-bg-image" style="background-image: url('${gameImageUrl}')"></div>
+                        <div class="script-bg-overlay"></div>` : ''}
+                        <div class="script-title">${script.title}</div>
+                        <div class="script-game">${script.game.name || 'Unknown Game'}</div>
+                        <div class="script-meta">
+                            <span>Added: ${new Date(script.createdAt).toLocaleDateString()}</span>
+                            ${script.key ? '<span class="requires-key">- Likely requires key</span>' : ''}
+                        </div>
+                        <div class="script-buttons" style="margin-top: 4px;">
+                            <button class="script-direct-btn" data-script-id="${script._id}">Direct Execute</button>
+                            <button class="script-load-btn" data-script-id="${script._id}">Load Script</button>
+                        </div>
+                    `;
+                    
+                    scripthubContent.appendChild(scriptItem);
+                });
+                
+                document.querySelectorAll('.script-load-btn[data-script-id]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        loadScript(button.dataset.scriptId);
+                    });
+                });
+                
+                document.querySelectorAll('.script-direct-btn[data-script-id]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        directExecuteScript(button.dataset.scriptId);
+                    });
+                });
+            }
+            
+            function loadScript(scriptId) {
+                const script = window.scriptHubScripts.find(s => s._id === scriptId);
+                
+                if (script && script.script) {
+                    scripts[activeId].content = script.script;
+                    cm.setValue(script.script);
+                    
+                    if (/^script\d*\.lua$/.test(scripts[activeId].name)) {
+                        const newName = script.title.endsWith('.lua') ? script.title : `${script.title}.lua`;
+                        scripts[activeId].name = newName;
+                        document.querySelector(`.tab[data-tab-id="${activeId}"]`).innerHTML = 
+                            `${newName}<span class="tab-close">×</span>`;
+                    }
+                    
+                    toggleSidebar();
+                    
+                    updateConsoleOutput(`Script "${script.title}" loaded successfully.`);
+                } else {
+                    updateConsoleOutput(`Error: Could not load script. Script content not available.`);
+                }
+            }
+            
+            function directExecuteScript(scriptId) {
+                const script = window.scriptHubScripts.find(s => s._id === scriptId);
+                
+                if (script && script.script) {
+                    window.api.execute_script(script.script)
+                        .then(data => {
+                            toggleSidebar();
+                            updateConsoleOutput(`Executing: "${script.title}"`);
+                            updateConsoleOutput(data.message);
+                            if (data.details && Array.isArray(data.details)) {
+                                data.details.forEach(detail => updateConsoleOutput(detail));
+                            }
+                        })
+                        .catch(error => updateConsoleOutput(`Error: ${error.message}`));
+                } else {
+                    updateConsoleOutput(`Error: Could not execute script. Script content not available.`);
+                }
+            }
+            
+            function directExecuteLocalScript(scriptName) {
+                window.api.getLocalScripts()
+                    .then(data => {
+                        if (data.status === 'success') {
+                            const script = data.scripts.find(s => s.name === scriptName);
+                            
+                            if (script && script.content) {
+                                window.api.execute_script(script.content)
+                                    .then(data => {
+                                        updateConsoleOutput(`Executing: "${scriptName}"`);
+                                        updateConsoleOutput(data.message);
+                                        if (data.details && Array.isArray(data.details)) {
+                                            data.details.forEach(detail => updateConsoleOutput(detail));
+                                        }
+                                    })
+                                    .catch(error => updateConsoleOutput(`Error: ${error.message}`));
+                            } else {
+                                updateConsoleOutput(`Error: Script "${scriptName}" not found or has no content.`);
+                            }
+                        } else {
+                            updateConsoleOutput(`Error loading local scripts: ${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        updateConsoleOutput(`Error loading script: ${error.message}`);
+                    });
+            }
+            
+            scripthubBtn.addEventListener('click', toggleSidebar);
+            sidebarClose.addEventListener('click', toggleSidebar);
+            sidebarOverlay.addEventListener('click', toggleSidebar);
+            
+            document.getElementById('scripthub-search').addEventListener('input', debounce(function() {
+                const searchTerm = this.value;
+                if (currentScriptsTab === 'local') {
+                    filterLocalScripts(searchTerm);
+                } else {
+                    fetchScripts(searchTerm);
+                }
+            }, 250)); 
+            
+            const contextMenu = document.getElementById('tab-context-menu');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalTitle = document.getElementById('modal-title');
+            const modalInput = document.getElementById('modal-input');
+            const modalCancel = document.getElementById('modal-cancel');
+            const modalSubmit = document.getElementById('modal-submit');
+            let contextTabId = null;
+            let modalCallback = null;
+            let modalType = '';
+            
+            function saveScript(id) {
+                scripts[id].content = cm.getValue();
+                const scriptName = scripts[id].name;
+                
+                if (/^script\d*\.lua$/.test(scriptName)) {
+                    showModal('Save as', scriptName, (newName, autoExec) => {
+                        if (newName && newName.trim() !== '') {
+                            const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                            scripts[id].name = updatedName;
+                            scripts[id].autoExec = autoExec;
+                            document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                                `${updatedName}<span class="tab-close">×</span>`;
+                            
+                            saveScriptToFile(id);
+                        }
+                    }, 'rename', true);
+                } else {
+                    showModal('Save Script', scriptName, (newName, autoExec) => {
+                        if (newName && newName.trim() !== '' && newName !== scriptName) {
+                            const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                            scripts[id].name = updatedName;
+                            document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                                `${updatedName}<span class="tab-close">×</span>`;
+                        }
+                        scripts[id].autoExec = autoExec;
+                        saveScriptToFile(id);
+                    }, 'save', true);
+                }
+            }
+            
+            function saveScriptToFile(id) {
+                const scriptName = scripts[id].name;
+                const autoExec = scripts[id].autoExec || false;
+                
+                window.api.saveScript(scriptName, scripts[id].content, autoExec)
+                    .then(result => {
+                        updateConsoleOutput(result.status === 'success' ? 
+                            `Script saved successfully as: ${scriptName}${autoExec ? ' (Auto-Execute enabled)' : ''}` : 
+                            `Error saving script: ${result.message}`);
+                    })
+                    .catch(error => {
+                        updateConsoleOutput(`Error saving script: ${error.message}`);
+                    });
+            }
+            
+            function showModal(title, defaultValue, callback, type = 'rename', showAutoExec = false) {
+                modalTitle.textContent = title;
+                modalInput.value = defaultValue || '';
+                modalCallback = callback;
+                modalType = type;
+                
+                const autoExecContainer = document.getElementById('autoexec-container');
+                const autoExecToggle = document.getElementById('autoexec-toggle');
+                
+                if (showAutoExec) {
+                    autoExecContainer.style.display = 'flex';
+                    if (type === 'save' && activeId && scripts[activeId].hasOwnProperty('autoExec')) {
+                        autoExecToggle.checked = scripts[activeId].autoExec;
+                    } else {
+                        autoExecToggle.checked = false;
+                    }
+                } else {
+                    autoExecContainer.style.display = 'none';
+                }
+                
+                if (defaultValue && defaultValue.includes('.')) {
+                    const dotIndex = defaultValue.lastIndexOf('.');
+                    modalInput.setSelectionRange(0, dotIndex);
+                }
+                
+                modalOverlay.classList.add('active');
+                modalInput.focus();
+            }
+            
+            function hideModal() {
+                modalOverlay.classList.remove('active');
+                modalInput.value = '';
+                modalCallback = null;
+            }
+            
+            function showContextMenu(e, tabId) {
+                e.preventDefault();
+                contextTabId = tabId;
+                
+                contextMenu.style.left = `${e.pageX}px`;
+                contextMenu.style.top = `${e.pageY}px`;
+                contextMenu.style.display = 'block';
+                
+                setTimeout(() => {
+                    document.addEventListener('click', hideContextMenu);
+                }, 0);
+            }
+            
+            function hideContextMenu() {
+                contextMenu.style.display = 'none';
+                document.removeEventListener('click', hideContextMenu);
+            }
+            
+            function renameScript(id) {
+                const currentName = scripts[id].name;
+                showModal('Rename Script', currentName, (newName) => {
+                    if (newName && newName.trim() !== '') {
+                        const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                        scripts[id].name = updatedName;
+                        document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                            `${updatedName}<span class="tab-close">×</span>`;
+                    }
+                }, 'rename');
+            }
+            
+            function createNewScript() {
+                if (Object.keys(scripts).length >= MAX_TABS) {
+                    output.innerHTML = `Maximum tabs reached (${MAX_TABS}). Close a tab first.`;
+                    return;
+                }
+                
+                showModal('New Script', 'script.lua', (scriptName) => {
+                    if (scriptName && scriptName.trim() !== '') {
+                        const id = `script${nextId++}`;
+                        const name = scriptName.endsWith('.lua') ? scriptName : `${scriptName}.lua`;
+                        scripts[id] = {name, content: ''};
+                        tabContainer.insertBefore(createTab(id, name), newTabBtn);
+                        switchTab(id);
+                        updateTabBtn();
+                    }
+                }, 'new');
+            }
+            
+            tabContainer.addEventListener('contextmenu', e => {
+                const tab = e.target.closest('.tab');
+                if (!tab) return;
+                showContextMenu(e, tab.dataset.tabId);
+            });
+            
+            document.getElementById('context-rename').addEventListener('click', () => {
+                if (contextTabId) renameScript(contextTabId);
+            });
+            
+            document.getElementById('context-save').addEventListener('click', () => {
+                if (contextTabId) saveScript(contextTabId);
+            });
+            
+            modalCancel.addEventListener('click', hideModal);
+            
+            modalSubmit.addEventListener('click', () => {
+                if (modalCallback) {
+                    const autoExecToggle = document.getElementById('autoexec-toggle');
+                    modalCallback(modalInput.value, autoExecToggle.checked);
+                }
+                hideModal();
+            });
+            
+            modalInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && modalCallback) {
+                    const autoExecToggle = document.getElementById('autoexec-toggle');
+                    modalCallback(modalInput.value, autoExecToggle.checked);
+                    hideModal();
+                }
+            });
+            
+            newTabBtn.addEventListener('click', createNewScript);
+            
+            document.addEventListener('click', (e) => {
+                if (!contextMenu.contains(e.target)) {
+                    contextMenu.style.display = 'none';
+                }
+            });
+            
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) hideModal();
+            });
+
+            document.getElementById('roblox-btn').addEventListener('click', () => {
+                window.api.openRoblox()
+            });
+
+            function renameLocalScript(scriptName) {
+                showModal('Rename Script', scriptName, (newName) => {
+                    if (newName && newName.trim() !== '' && newName !== scriptName) {
+                        const updatedName = newName.endsWith('.lua') ? newName : `${newName}.lua`;
+                        
+                        window.api.renameScript(scriptName, updatedName)
+                            .then(result => {
+                                if (result.status === 'success') {
+                                    updateConsoleOutput(`Script "${scriptName}" renamed to "${updatedName}"`);
+                                    fetchLocalScripts(); 
+                                    
+                                    Object.keys(scripts).forEach(id => {
+                                        if (scripts[id].name === scriptName) {
+                                            scripts[id].name = updatedName;
+                                            document.querySelector(`.tab[data-tab-id="${id}"]`).innerHTML = 
+                                                `${updatedName}<span class="tab-close">×</span>`;
+                                        }
+                                    });
+                                } else {
+                                    updateConsoleOutput(`Error renaming script: ${result.message}`);
+                                }
+                            })
+                            .catch(error => {
+                                updateConsoleOutput(`Error renaming script: ${error.message}`);
+                            });
+                    }
+                }, 'rename');
+            }
+
+            function deleteLocalScript(scriptName) {
+                if (confirm(`Are you sure you want to delete "${scriptName}"?`)) {
+                    window.api.deleteScript(scriptName)
+                        .then(result => {
+                            if (result.status === 'success') {
+                                updateConsoleOutput(`Script "${scriptName}" deleted successfully`);
+                                fetchLocalScripts(); 
+                                
+                                Object.keys(scripts).forEach(id => {
+                                    if (scripts[id].name === scriptName) {
+                                        closeTab(id);
+                                    }
+                                });
+                            } else {
+                                updateConsoleOutput(`Error deleting script: ${result.message}`);
+                            }
+                        })
+                        .catch(error => {
+                            updateConsoleOutput(`Error deleting script: ${error.message}`);
+                        });
+                }
+            }
+            
+            document.addEventListener('keydown', (e) => {       
+                const isCmdKey = e.metaKey 
+                
+                if (isCmdKey) {
+                    if (e.key === 'w') {
+                        e.preventDefault();
+                        closeTab(activeId);
+                    }
+
+                    else if (e.key === 't') {
+                        e.preventDefault(); 
+                        createNewScript();
+                    }
+
+                    else if (e.key === 's') {
+                        e.preventDefault(); 
+                        saveScript(activeId);
+                    }
+                    
+                    else if (/^[1-8]$/.test(e.key)) {
+                        e.preventDefault();
+                        const tabIndex = parseInt(e.key) - 1; 
+                        const tabIds = Object.keys(scripts);
+                        
+                        if (tabIds.length > tabIndex) {
+                            const tabId = tabIds[tabIndex];
+                            switchTab(tabId);
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('close-app-btn').addEventListener('click', () => {
+                window.api.quit_app();
+            });
+
+            document.getElementById('minimize-app-btn').addEventListener('click', () => {
+                window.api.minimize_app();
+            });
+        });
+    </script>
 </body>
 </html>
